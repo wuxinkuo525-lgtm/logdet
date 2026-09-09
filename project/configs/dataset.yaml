@@ -1,0 +1,235 @@
+# ============================================================================
+# LogoDet-3K 数据集的期望规模与解析规则。
+#
+# 这里的数字是 S1/S2 对账门的**唯一真源** —— 代码里不许再出现任何硬编码计数。
+# ============================================================================
+
+source:
+  name: LogoDet-3K
+  paper: "arXiv:2008.05359 (IEEE TMM)"
+  upstream_repo: "https://github.com/Wangjing1551/LogoDet-3K-Dataset"
+  # Kaggle 镜像（境外可直连；官方直链 123.57.42.89 是国内 IP 裸 HTTP）
+  kaggle_slug: "lyly99/logodet3k"
+  kaggle_api: "https://www.kaggle.com/api/v1/datasets/download/lyly99/logodet3k"
+  zip_name: "LogoDet-3K.zip"
+  # 实测值（2026-09-07 下载，HTTP 200，6m17s @ 8.2MB/s）。
+  # 镜像页标称 3.27 GB 是十进制 GB 的粗略标注，实际 3,083,397,484 B = 2.87 GiB。
+  # 这个数字用于"已存在文件是否完整"的快速判断（阈值 90%），
+  # 权威校验仍以 sha256 + zipfile.testzip() 为准。
+  approx_zip_bytes: 3_083_397_484
+
+expected:
+  totals:
+    supercategories: 9
+    brand_dirs: 3000 # 二级目录数 == 类别数
+    # 158,654 而不是论文摘要里的 158,652 —— 见 known_inconsistencies.total_images。
+    # 依据：论文 Table II 的 9 个分项之和 == 158,654 == 我们的实测值，逐超类零差值。
+    images: 158654
+    # 194,265 而不是论文摘要的 194,261 —— 见 known_inconsistencies.total_objects。
+    # 依据：从 zip 全量解析 158,654 个 XML 实测 194,265 个 <object> 节点。
+    objects: 194265
+
+  # 9 个超类的（类数, 图数）
+  per_supercategory:
+    Food: { classes: 932, images: 53350 }
+    Clothes: { classes: 604, images: 31266 }
+    Necessities: { classes: 432, images: 24822 }
+    Others: { classes: 371, images: 15513 }
+    Electronic: { classes: 224, images: 9675 }
+    Transportation: { classes: 213, images: 10445 }
+    Leisure: { classes: 111, images: 5685 }
+    Sports: { classes: 66, images: 3953 }
+    Medical: { classes: 47, images: 3945 }
+
+tolerance:
+  # 全部收紧到 0。
+  #
+  # 初版给逐超类图数留了 ±10 的容差，理由是"上游数字互相矛盾、说不准"。
+  # 但实测后发现矛盾的根因已经完全定位（见 known_inconsistencies）：
+  # 论文 Table II 的分项是对的，摘要的总数是笔误。既然能精确到个位，
+  # 容差就没有存在理由了 —— 留着容差只会让"某超类少了 8 张图"这类
+  # 真故障溜过去。
+  supercategories: 0
+  supercategory_classes: 0
+  brand_dirs: 0
+  total_images: 0
+  per_supercategory_images: 0
+
+known_inconsistencies:
+  # ── 已查证：论文摘要的图像总数与它自己的 Table II 分项和对不上 ──
+  #
+  # 论文摘要 / GitHub README / Kaggle 页均写 "158,652 images"。
+  # 但论文 Table II 的 9 个超类图数分项：
+  #   53350 + 31266 + 24822 + 15513 + 9675 + 10445 + 5685 + 3953 + 3945 = 158,654
+  # 我们的实测值 = 158,654，与 Table II **逐超类零差值**。
+  #
+  # 结论：分项数字是权威的，"158,652" 这个总数是上游的笔误。
+  # 处置：期望总数采用 158,654（= 分项和 = 实测），并对总数做**精确**断言。
+  #      这不是放宽标准 —— 恰恰相反，我们能精确到个位，因为已经定位了差异根因。
+  total_images:
+    paper_abstract: 158652
+    paper_table_ii_sum: 158654
+    measured: 158654
+    adopted: 158654
+    note: "摘要总数与自身分项表差 2，采信分项和；实测与分项和逐项吻合"
+
+  # ── 另一处上游分歧：Sports 超类的图数 ──
+  #
+  #   GitHub README : 3,945（与 Medical 行同值，疑似复制粘贴错误）
+  #   论文 Table II  : 3,953
+  #   我们的实测     : 3,953（与论文 Table II 一致）
+  sports_images:
+    github_readme: 3945
+    paper_table_ii: 3953
+    measured: 3953
+    adopted: 3953
+    note: "采用论文 Table II 的 3,953，与实测一致；README 的 3,945 疑为笔误"
+
+  # ── 框数：论文摘要 194,261 vs 实测 194,265 ──
+  #
+  # 从 zip 全量解析 158,654 个 XML，共 194,265 个 <object> 节点。
+  # 论文摘要写 "about 200,000 manually annotated logo objects"，Table I 写 194,261。
+  # 差 +4。与图像数 +2 的情形同类：上游统计口径或笔误。
+  #
+  # 注意其中有 2 个退化框（宽或高 <= 0），清洗规则 R3 会丢弃它们，
+  # 所以清洗后的可用框数会是 194,263。这个递减必须在 S2 门里显式对账。
+  total_objects:
+    paper_table_i: 194261
+    measured_raw: 194265
+    degenerate_dropped: 2
+    measured_clean: 194263
+    adopted_raw: 194265
+    note: "以实测原始框数为期望；清洗后 194,263，差额全部归因到 R3 退化框"
+
+# ============================================================================
+# S2 侦察实测发现（scripts/s2_recon.py，全量 158,654 XML / 194,265 框）
+#
+# 这一节是**推翻计划假设**的记录。计划阶段依据"论文未记录字段"判断标注里
+# 没有 truncated / difficult，实际是完整 VOC 格式，两个字段都在。
+# ============================================================================
+recon_findings:
+  # ── 最重要的一条：truncated 是真实标注，不是常量 ──
+  #
+  #   truncated: '0' = 173,995 (89.57%)   '1' = 20,270 (10.43%)
+  #
+  # 这意味着**截断难例不需要几何代理** —— 直接用标注即可。
+  # 计划里的 P1（框贴图像边界）因此改变角色：
+  #   由「截断的代理指标」→ 变成「代理方法的校准样本」
+  # 因为我们现在既有几何测量又有人工标注，可以直接算出
+  # 「贴边」对「标注为截断」的 precision / recall。
+  # 这是唯一能给 P2 / P3（无真值）的可信度提供旁证的机会，非常有价值。
+  truncated:
+    has_signal: true
+    value_0: 173995
+    value_1: 20270
+    positive_rate: 0.1043
+    decision: "T1 切片直接用 truncated==1；几何贴边测量降级为校准诊断"
+
+  difficult:
+    has_signal: false
+    note: "194,265 个框全部为 '0'，无信息量，忽略"
+
+  pose:
+    has_signal: false
+    note: "全部为 'Unspecified'，无信息量，忽略"
+
+  # annotation 根节点的 verified 属性也有信号，但只覆盖部分文件
+  verified:
+    has_signal: true
+    value_no: 95038
+    value_yes: 29889
+    missing_attribute: 33727 # 158,654 - 124,927
+    decision: "作为标注来源元信息记录进 images 表，本阶段不用于切片"
+
+  coordinate_basis:
+    verdict: "0-based"
+    min_xmin: 0
+    min_ymin: 0
+    xmin_eq_0: 659
+    ymin_eq_0: 401
+    xmax_gt_W: 0
+    ymax_gt_H: 0
+    xmax_eq_W: 9371
+    decision: >
+      判定 0-based：存在 xmin==0 / ymin==0 的框，且 xmax 从不超过 W。
+      因此**不做任何坐标平移**。内部统一为 0-based、半开区间 [x1, x2)。
+      若误判为 1-based 而做了 -1 平移，会让全图 IoU 系统性偏移，
+      表现为 AP 静默低 1-2 点且极难定位。
+
+  dirty_data:
+    swapped_coords: 0 # xmin>xmax 或 ymin>ymax
+    degenerate_boxes: 2 # 宽或高 <= 0，由 R3 丢弃
+    missing_size_node: 0
+
+  # 这一条是**侦察方法本身的错误**，记下来以免重犯
+  name_vs_dir_mismatch:
+    regex_measured_rate: 0.07439
+    real_rate: 0.0687 # lxml 正式解析后仍有 6.87%，是真实标签噪声
+    root_cause_of_recon_error: >
+      用 regex 直接从字节流取 <name> 没有做 XML 实体反转义，
+      于是目录名 'A. Favre & Fils' 与 XML 里的 'A. Favre &amp; Fils' 被判为不一致。
+      lxml 会自动还原 —— 但换用 lxml 后仍剩 6.87%，那部分是真的。
+
+  # ── 已查证的重要标签噪声：XML 类名存在系统性「下拉列表选错相邻项」 ──
+  #
+  # 现象：13,347 框（6.87%）的 XML <name> 与所在品牌目录名不一致。
+  #   仅 -N 后缀不同   12,928 框 (96.9%)   如 目录 lexus-2 → XML lexus-1
+  #   完全不同            419 框 ( 3.1%)   如 littmann → liu gong
+  #
+  # 检验（scripts/s2_diagnose_adjacency.py）：把 3,000 个品牌名按不区分
+  # 大小写的字典序排成一列（即标注工具下拉列表最可能的顺序），
+  # 计算每个错配对两端的**排名距离**：
+  #     距离中位数        = 1
+  #     距离 <= 3 占比    = 90.6%（组合） / 99.6%（框）
+  #     距离均值          = 4.7
+  #     随机误选期望均值  = 1000
+  # 比随机紧 213 倍 → 确凿是从排序列表里点中了相邻条目。
+  #
+  # 决策：**类标签以目录名为准，不用 XML 的 <name>。**
+  #   理由一：目录名来自爬取时的品牌查询词，是系统性产物；
+  #          XML 名来自人工下拉选择，已被证明带系统性邻项误选。
+  #   理由二：用目录名恰好重建 3,000 类 = 论文的基准类空间；
+  #          用 XML 名只有 2,993 类（7 个目录名从未作为类名出现），
+  #          直接失去与论文对账的能力。
+  #
+  # 诚实声明的局限：对占 96.9% 的「仅 -N 后缀差」情形，无法仅凭元数据
+  # 判断到底是标注者点错了，还是该图确实同时含有另一变体的 logo
+  # （产品图常同时出现图形版与文字版）。要分辨必须看图。
+  # 因此我们保留两列并打标记，把判断权留给下游。
+  #
+  # **对本阶段主轨完全无影响**：主轨是 class-agnostic 单类检测，
+  # 每个框都只是 "logo"，品牌标签是什么都不参与评测。
+  # 这个问题只影响推迟到训练阶段的 Top-N 品牌识别轨。
+  label_authority:
+    adopted: brand_dir
+    rejected: xml_name
+    disagree_boxes: 13347
+    disagree_rate: 0.0687
+    suffix_only_boxes: 12928
+    cross_brand_boxes: 419
+    rank_distance_median: 1
+    rank_distance_mean: 4.7
+    random_expectation: 1000
+    dirs_never_used_as_class_name: 7
+    columns_kept: ["class_name", "class_name_xml", "label_disagree"]
+    affects_main_track: false
+
+  exif_rotation:
+    checked: 200
+    mismatch: 0
+    decision: "XML 的 <size> 可信，不必对 158k 图做全量 PIL 解码校验"
+
+  performance:
+    xml_source: "zip"
+    measured_rate_files_per_sec: 15305
+    full_parse_sec: 10.4
+    note: "磁盘逐文件仅 20 文件/秒，见 ingest/xml_source.py 的基准测试说明"
+
+parse:
+  # 解析时接受的图像扩展名（大小写不敏感匹配，落表时统一小写）
+  image_extensions: [".jpg", ".jpeg", ".png", ".bmp"]
+  annotation_extension: ".xml"
+  # 解压后数据集根目录在 zip 内的名字
+  archive_top_dir: "LogoDet-3K"
+  # 这些是 macOS / 压缩工具产生的噪声，清点时直接忽略
+  ignore_names: [".DS_Store", "__MACOSX", "Thumbs.db", ".gitkeep"]

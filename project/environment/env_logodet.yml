@@ -1,0 +1,25 @@
+# ============================================================================
+# conda 环境声明。
+#
+# 这里**只声明 python 版本**，科学计算栈全部走 pip + requirements.lock.txt。
+#
+# 为什么不把 torch/numpy 写进 conda dependencies：
+#   1. conda-forge 与 PyPI 的 torch 构建不同（MPS 支持、线程库链接方式都有差异），
+#      混用两个渠道装同一批包是 macOS 上最常见的环境炸法。
+#   2. 单一渠道 = 单一真源，S0-G1 的版本对账才能一条不漏地核对。
+#
+# 复现命令：
+#   bash scripts/s0_setup_env.sh
+# 等价于：
+#   conda env create -f environment/env_logodet.yml
+#   ~/miniconda3/envs/logodet/bin/pip install -r environment/requirements.lock.txt
+# ============================================================================
+name: logodet
+
+channels:
+  - defaults
+
+dependencies:
+  # 不用 3.13：torch / torchvision / pycocotools 的 arm64 wheel 在 3.11 最完整
+  - python=3.11
+  - pip

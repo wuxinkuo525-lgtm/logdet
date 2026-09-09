@@ -1,0 +1,47 @@
+# 由 scripts/s0_verify_env.py 自动生成，不要手改。
+# device 的取值由 S0-G4（MPS/CPU 数值一致性）决定：
+#   一致  → mps
+#   超差  → cpu（宁可慢，也不要用一个数值上不可信的后端出指标）
+
+device: mps
+verified_at: 2026-09-07T16:55:44
+g4_detail: "一致（feat 1.42e-05，box 0.001px），推荐 device=mps"
+
+# ⚠️ 上面这个 device 只覆盖 **数值一致性**，不代表它对所有模型都最快。
+# S0-G4 测的是 backbone + RPN 的输出数值，结论有效但**作用域有限**。
+# 速度必须按模型分别实测，见下方 device_by_component。
+
+# 由 scripts/s4_smoke_loader.py 实测选出
+num_workers: 0
+loader_img_per_sec: 572.6
+
+# ============================================================================
+# 按组件选设备（scripts/s7_diagnose_device.py 实测，4 张图，均已预热）
+#
+# 单张分段耗时：
+#   阶段                      CPU        MPS      MPS/CPU
+#   transform               1.5 ms     1.2 ms     0.79x
+#   backbone              269.5 ms    55.2 ms     0.20x   ← MPS 快 5 倍
+#   rpn（含 NMS）          140.1 ms    27.6 ms     0.20x   ← MPS 快 5 倍
+#   roi_heads           432.9 ms  36718.4 ms    84.82x   ← MPS 慢 85 倍
+#   整模型 forward        829.6 ms  37112.9 ms    44.74x
+#
+# 根因：roi_heads 里的 roi_align 与逐类 NMS 在 MPS 后端缺失，
+# PYTORCH_ENABLE_MPS_FALLBACK=1 让它们悄悄回退 CPU。每次回退都要
+# GPU→CPU→GPU 同步，而这些算子在 head 里被反复调用，同步开销
+# 彻底盖过了 GPU 的算力优势。
+#
+# 推理全集 3,079 图：CPU 43.6 分钟 vs MPS 31.3 小时。
+# ============================================================================
+device_by_component:
+  # 只用 backbone + RPN 的模型（如 proposals baseline）→ 走 MPS
+  backbone_rpn_only: mps
+  # 含 roi_heads 的完整两阶段检测器 → 必须走 CPU
+  two_stage_full: cpu
+  # 纯 ViT 结构（OWLv2 等），无 roi_align/逐类 NMS → 预期可用 MPS，待实测
+  vit_open_vocab: unmeasured
+
+measured_rates_img_per_sec:
+  faster_rcnn_v2_cpu: 1.177
+  faster_rcnn_v2_mps: 0.027
+  backbone_rpn_mps: unmeasured # 分段数据推算约 12 img/s

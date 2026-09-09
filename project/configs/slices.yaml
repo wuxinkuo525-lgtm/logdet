@@ -1,0 +1,166 @@
+t1:
+  role: primary_slice
+  source: annotation
+  field: truncated
+  positive_value: 1
+  measured_positive: 20270
+  measured_rate: 0.1043
+edge:
+  role: calibration_only
+  min_px: 2.0
+  frac: 0.005
+  measured_precision: 0.857
+  measured_recall: 0.961
+  measured_f1: 0.906
+  measured_mcc: 0.897
+  note: '这是全项目唯一有真值可对的代理。MCC=0.897 说明「用几何量近似人工难例判断」 这个思路本身可行 —— 但它成立的前提是所测几何量与被测概念**直接对应** （贴边 ↔ 被画面裁切）。P2/P3
+    的失败恰恰在于这个前提不成立。
+
+    '
+size:
+  role: primary_slice
+  small_max_area: 1024
+  large_min_area: 9216
+  measured:
+    small: 0.018
+    medium: 0.2981
+    large: 0.684
+  note: '与论文 Fig.5D 定义一致但**数值无法复现**（论文 s=4.81% 而实测 1.80%， 且论文三个百分比自相矛盾）。见 dataset.yaml 的 recon_findings。
+    作为切片轴本身无歧义：面积由坐标直接算出，坐标已由 S2-G4b 验证。
+
+    '
+density:
+  role: primary_slice
+  bins:
+  - '1'
+  - '2'
+  - 3-4
+  - 5+
+  measured:
+    '1': 0.8461
+    '2': 0.1191
+    3-4: 0.0275
+    5+: 0.0073
+  note: 平均 1.2244 框/图，最多 65 框/图
+proxy_verdict:
+  threshold: 0.6
+  p2_occlusion:
+    verdict: DEMOTED
+    role: exploratory_column_only
+    reviewed: 25
+    label_1: 3
+    label_0: 18
+    label_unknown: 4
+    precision: 0.143
+    root_cause: annotation_nesting
+    attribution:
+      nesting: 17
+      real_occl: 3
+      too_small: 2
+      unreadable: 2
+      z_order: 1
+    counterintuitive_finding: '高 IoF 指向嵌套而非遮挡：子框被完全包含时 IoF→1.0， 真遮挡只有部分重叠。把阈值调高只会让 precision 更差。
+
+      '
+    attempted_fixes:
+    - rule: containment < 0.80
+      precision: 0.167
+    - rule: containment < 0.50
+      precision: 0.3
+    - rule: containment < 0.80 且 面积比 >= 0.70
+      precision: 0.429
+      pool: 1066
+    fix_rejected_because: '最好也只到 0.429，未达 0.60；且该估计仅建立在 3 个正例上 （3/7 的 95% CI 约 [0.16, 0.75]），证据强度不足以支撑采用。
+
+      '
+    structural_limit: '更根本的问题：遮挡是**有方向的**（取决于 z-order），而框重叠是对称的。 仅凭 2D 框无法判断谁在前面 —— 样本 #73736 里横幅文字压在圆形徽标上，
+      几何重叠成立但该框是遮挡者、自身完全可见。这不是阈值能解决的。
+
+      '
+    discriminative_feature_found: area_ratio
+    evidence: '真遮挡样本面积比 ∈ [0.84, 1.28]（两个同尺度实例部分互压）， 嵌套样本 ∈ [0.07, 1.25]（小子框套大 lockup 框）。 方向正确但样本量不足以定阈值。
+
+      '
+    precision_after_human_review: 0.125
+    label_1_final: 3
+    label_0_final: 21
+    label_unknown_final: 1
+    verdict_after_human_review: DEMOTED
+  p3_shape_outlier:
+    verdict: DEMOTED
+    role: exploratory_column_only
+    reviewed: 35
+    label_1: 6
+    label_0: 28
+    label_unknown: 1
+    precision: 0.176
+    root_cause: class_internal_bimodality
+    attribution:
+      natural: 14
+      bimodal: 13
+      real_persp: 3
+      real_trunc: 2
+      ann_defect: 1
+      unreadable: 1
+      nesting: 1
+    evidence: 'lexus-1 目录里既有 Ⓛ 椭圆徽标图（ar≈1.2）又有 LEXUS 字标图（ar≈4.7）， 类内长宽比是双模态的，MAD z-score 必然把少数那一模态整体判为离群。
+      实测：按类内 log(ar) 极差 > 1.0 判定，2,662/3,000 类（88.7%）为多模态； 且 13 个归因为 bimodal 的样本 **100%** 落在多模态类里 —— 诊断成立。
+      这正是 dataset.yaml 里 R9 记录的 `-N` 后缀标签污染在 P3 上的投影。
+
+      '
+    fix_rejected_because: '调 z 阈值只会同比例放大/缩小两个模态，precision 不变。 限制到单模态类则只剩 11.3% 的类，已标样本在其中仅 1 个（n=1）， 没有任何证据支撑其有效性。
+
+      '
+    salvage_value: '作为探索性视角仍有价值：抓到 2 例真截断（与 trunc=1 一致） 和 3 例真透视形变（旋转 90 度的招牌、圆柱面包裹的桶身、盒盖顶面强压缩）， 以及 1
+      例标注缺陷（框过大跨多实例）。故保留列，仅不作为上报切片。
+
+      '
+    precision_after_human_review: 0.1714
+    label_1_final: 6
+    label_0_final: 29
+    label_unknown_final: 0
+    verdict_after_human_review: DEMOTED
+  columns_kept:
+  - p2_occ_iof
+  - p2_occ_partner
+  - is_hard_p2
+  - p3_ar_z
+  - p3_valid
+  - is_hard_p3
+  hard_any_definition: is_hard_t1
+  hard_any_note: '原定义是 T1|P2|P3 的并集（28,359 框）。P2/P3 降级后， hard_any 收窄为仅 T1（20,270 框）。 S3 的 val_hard_pool
+    应按 T1 + 尺寸(small) + 密度(5+) 三轴富集， 不再按 P2/P3 富集。
+
+    '
+p3:
+  z_threshold: 3.0
+  min_class_size: 20
+  mad_floor_frac: 0.02
+  expected_rate_range:
+  - 0.005
+  - 0.05
+  multimodal_log_ar_ptp: 1.0
+  measured_multimodal_classes: 2662
+  measured_multimodal_rate: 0.887
+p2:
+  metric: iof
+  iof_threshold: 0.3
+  fallback_thresholds:
+  - 0.15
+  - 0.0
+  min_ann_for_reliable: 200
+review_provenance:
+  method: VLM 预标 + 人工抽复核
+  vlm_labeled: 60
+  human_reviewed: 6
+  priority_for_human_review:
+  - 67607
+  - 73597
+  - 106646
+  - 73576
+  - 73736
+  - 83288
+  reporting_requirement: '报告中必须标注为 "VLM-assisted, N/60 human-reviewed" 并注明所用模型， **禁止简写为「人工核验」**。这是学术诚信要求。
+
+    '
+  human_vlm_disagreements: 4

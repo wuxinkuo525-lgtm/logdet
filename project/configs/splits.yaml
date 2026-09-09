@@ -1,0 +1,81 @@
+# ============================================================================
+# 数据划分配置。
+#
+# 设计依据来自 S3 侦察实测（scripts/s3_recon.py），三个原计划的复杂分支
+# 都被证明不必要，详见 src/logodet/splits/make_split.py 的模块说明。
+# ============================================================================
+
+# ---- 主划分 ----------------------------------------------------------------
+val_ratio: 0.10
+# 论文官方划分 trainval 142,142 / test 16,510 ≈ 89.6 / 10.4。
+# 取 0.10 使量级对齐便于讨论，但**必须声明这不是同一个划分** ——
+# 官方 zip 里不含 split 清单，我们无法复现它。
+
+seed_purpose: split_agnostic
+# 随机流按用途派生（见 src/logodet/seeds.py）。
+# 不同用途互不干扰：改了 val2k 的抽样代码不会扰动主划分。
+
+stratify_by: brand_dir
+# 实测每张图恰好只有 1 个类别（多类图 0 张），所以分层键就是品牌目录。
+# 这是 S2「以目录名为权威标签」决定的直接结果。
+
+# ---- 弱去重（簇为划分的原子单位）------------------------------------------
+dedup:
+  method: weak
+  key: [brand_dir, file_size, img_w, img_h]
+  measured_clusters: 158593
+  measured_singleton_rate: 0.9996
+  measured_max_cluster: 2
+  measured_classes_exceeding_quota: 0
+  # ⚠️ 这个弱判据只抓「字节大小完全相同」的重复，抓不到缩放过、
+  # 加过水印的近重复。真 pHash 推迟到训练阶段 —— setup 从不训练，
+  # 训练/验证泄漏对任何上报数字的影响为 0。
+  note: "近乎空操作但保留：成本为零且逻辑正确"
+
+# ---- val2k_repr：代表性子集 ------------------------------------------------
+val2k_target: 2000
+val2k_strata: [supercat, img_area_bin, n_boxes_bin] # 9 × 3 × 4 = 108 层
+val2k_allocation: largest_remainder
+# 用最大余数法而非直接 round：后者的舍入误差会让总数偏离目标
+# （2,000 抽成 1,997 之类）。
+val2k_role: 报总体指标
+val2k_forbidden: 报切片指标（部分切片样本量不足）
+
+# img_area_bin 定义 = 该图**最大框**的 area_bin。
+# 84.6% 的图只有 1 个框，对它们这就是精确值。
+
+# ---- val_hard_pool：难例富集池 ---------------------------------------------
+hard_pool_quota_per_axis: 400
+hard_pool_axes: [T1, SIZE_small, DENSITY_5plus]
+# ⚠️ 三轴不含 P2/P3 —— 它们经 60 张核验 precision 仅 0.125/0.171，
+# 远低于 0.60 门槛，已在 S2 降级为探索性列（见 configs/slices.yaml）。
+hard_pool_role: 报切片对比
+hard_pool_forbidden: 报总体指标（分布已被人为扭曲）
+
+# S3 侦察实测的各轴 val 内期望可用量：
+hard_pool_measured:
+  T1: { full: 20270, val_expected: 2027, sufficient: true }
+  SIZE_small: { full: 3490, val_expected: 349, sufficient: false }
+  DENSITY_5plus: { full: 7773, val_expected: 777, sufficient: true }
+# SIZE_small 略低于 400 配额 → 取全部。349 仍远高于 200 的
+# UNRELIABLE 判定线，统计上可用。
+
+# 三轴几乎不重叠（T1 ∩ SIZE_small 仅 28 框），说明确实在测不同的东西：
+# 截断的 logo 通常较大（被画面边缘切掉的多是大目标），
+# 所以 T1 与 small 天然互斥。
+
+# ---- 可靠性判定 ------------------------------------------------------------
+min_ann_for_reliable: 200
+# 切片框数低于此值 → 报告中标 UNRELIABLE，必须带 bootstrap CI，
+# 且禁止对该切片下强结论。
+
+# ---- 供后续选 Top-N 参考（本阶段不划分副轨）--------------------------------
+topn:
+  deferred_to: training_stage
+  rationale: >
+    setup 阶段是 class-agnostic 单类检测，品牌标签不参与评测。
+    Top-N 品牌闭集只在训练阶段才有意义，故推迟。
+  selection_rule: >
+    经验门槛：每类 val 需 >= 15 框。框/图 ≈ 1.22、val 占 10%
+    → 需 n_images >= 123。实测 n_images >= 120 的类有 163 个。
+  measured_classes_ge_120: 163

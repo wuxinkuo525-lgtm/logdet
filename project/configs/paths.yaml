@@ -1,0 +1,61 @@
+# ============================================================================
+# 全项目唯一含绝对路径的文件。
+#
+# 三区隔离（three-zone isolation）：
+#   project/  代码 + 配置 + 报告（纯小文本）
+#   data/     原始数据集（158k jpg + 158k xml）
+#   runs/     全部产物（parquet / coco json / 预测 / 指标 / 日志）
+#   raw/      下载的 zip + sha256
+#
+# 语法：
+#   ${env:VAR|默认值}   读环境变量，缺失时用默认值
+#   ${roots.xxx}        引用本文件里已定义的 root
+# ============================================================================
+
+roots:
+  # 换机器时只需 export LOGDET_ROOT=/new/path，代码一行不用改
+  logdet: "${env:LOGDET_ROOT|~/Desktop/logdet}"
+
+  dataset: "${env:LOGDET_DATA_ROOT|${roots.logdet}/data/LogoDet-3K}"
+  artifacts: "${env:LOGDET_RUNS_ROOT|${roots.logdet}/runs}"
+  raw: "${env:LOGDET_RAW_ROOT|${roots.logdet}/raw}"
+  cache: "${env:LOGDET_CACHE_ROOT|~/.cache}"
+
+# runs/ 下的子目录，由 P.artifact("tables") 之类取用
+artifact_subdirs:
+  tables: tables
+  splits: splits
+  slices: slices
+  coco: coco
+  eval: eval # S5 起：COCO GT 派生视图 + 评测中间产物
+  predictions: predictions
+  metrics: metrics
+  cache: cache
+  logs: logs
+
+# ----------------------------------------------------------------------------
+# 云同步防护（cloud-sync guard）
+#
+# 为什么必须有这个：macOS 的 iCloud「桌面与文档文件夹」同步一旦开启，
+# ~/Desktop 会 resolve 到 ~/Library/Mobile Documents/com~apple~CloudDocs/Desktop。
+# 317k 个小文件丢进去会持续上传占配额，而且「优化存储」的按需下载
+# 会让 dataloader 随机读取时直接卡死。
+#
+# 断言在 resolve() 之后做，所以软链接绕不过去。
+# ----------------------------------------------------------------------------
+guards:
+  forbid_path_substrings:
+    - "Mobile Documents" # iCloud Drive
+    - "Google Drive"
+    - "Dropbox"
+    - "OneDrive"
+  # 这四个 root 必须在本机盘
+  check_roots:
+    - dataset
+    - artifacts
+    - raw
+    - cache
+  remediation: |
+    检测到该路径落在云同步目录内。请任选一种处置：
+      A. 系统设置 → Apple ID → iCloud → iCloud 云盘 → 关闭「桌面与文档文件夹」
+      B. export LOGDET_ROOT=~/logdet   然后重跑
