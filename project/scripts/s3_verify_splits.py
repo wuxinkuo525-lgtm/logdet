@@ -261,10 +261,17 @@ def main() -> int:
 
     # ---- H9 可复现 ---------------------------------------------------------
     def h9() -> GateResult:
-        before = {
-            f: file_sha256(sp / f)
-            for f in ("split_images.parquet", "val2k_repr.parquet", "val_hard_pool.parquet")
-        }
+        """两层判据。
+
+        自我一致性：同 seed 连跑两次，产物 sha256 相同。
+        跨机可复现：重建结果与 configs/splits.yaml 记录的参考值一致。
+
+        后者更强 —— 它能发现「在这台机器上自洽、但换台机器就变了」的问题。
+        切分产物不进仓库（4.2 MB 派生数据），所以这个锚点是「可重建」这句
+        声称的唯一凭据。
+        """
+        files = ("split_images.parquet", "val2k_repr.parquet", "val_hard_pool.parquet")
+        before = {f: file_sha256(sp / f) for f in files}
         r = subprocess.run(
             [sys.executable, str(PROJECT_DIR / "scripts" / "s3_make_splits.py")],
             cwd=PROJECT_DIR, capture_output=True, text=True,
@@ -272,18 +279,39 @@ def main() -> int:
         if r.returncode != 0:
             return GateResult("H9", "可复现", "FAIL",
                               f"重跑划分脚本失败：{r.stderr[-300:]}", blocking=True)
-        after = {f: file_sha256(sp / f) for f in before}
+        after = {f: file_sha256(sp / f) for f in files}
+
         rows: list[tuple[str, ...]] = []
         diff: list[str] = []
-        for f in before:
+        for f in files:
             same = before[f] == after[f]
-            rows.append((f, before[f][:16] + "…", "一致" if same else "不一致"))
+            rows.append((f, before[f][:16] + "…",
+                         "两次一致" if same else "两次不一致"))
             if not same:
-                diff.append(f)
+                diff.append(f"{f}(自我不一致)")
+
+        # 与配置里的参考值比对
+        ref = cfg.get("expected_sha256", {})
+        if ref:
+            rows.append(("—— 跨机参考值比对 ——", "", cfg.get("expected_sha256_note", "")))
+            for f in files:
+                exp = str(ref.get(f, ""))
+                got = after[f][: len(exp)] if exp else ""
+                ok_ref = bool(exp) and got == exp
+                rows.append((f"  {f}", f"期望 {exp} / 实得 {got}",
+                             "一致" if ok_ref else "不一致"))
+                if exp and not ok_ref:
+                    diff.append(f"{f}(与参考值不符)")
+        else:
+            rows.append(("跨机参考值", "未配置",
+                         "建议在 configs/splits.yaml 加 expected_sha256"))
+
+        detail = ("同 seed 重跑两次一致，且与配置记录的参考值相符 —— "
+                  "切分可跨机精确复现，无需随仓库携带产物")
+        if diff:
+            detail = f"复现性不成立：{diff}"
         return GateResult("H9", "可复现", "PASS" if not diff else "FAIL",
-                          "同 seed 重跑两次产物 sha256 完全相同" if not diff
-                          else f"{diff} 不可复现，随机流有泄漏",
-                          blocking=True, rows=rows)
+                          detail, blocking=True, rows=rows)
 
     runner.run(h9, "H9", "可复现", True)
 

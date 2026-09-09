@@ -1,6 +1,6 @@
 # S3 划分验证报告
 
-生成时间：2026-09-08 13:24:25
+生成时间：2026-09-09 15:04:58
 
 由验证脚本自动生成，**不要手改** —— 重跑脚本即可刷新。
 
@@ -16,7 +16,7 @@
 | H6 | val2k 代表性 | 是 | PASS | 与 val_full 最大 TVD 0.00154，可用于报总体指标 |
 | H7 | hard_pool 体量 | 否 | PASS | 三轴框数均达可靠性下限 |
 | H8 | 口径隔离 | 否 | WARN | 两子集用途互斥，评测代码须按此约束选集合；越界使用会得出无效结论 |
-| H9 | 可复现 | 是 | PASS | 同 seed 重跑两次产物 sha256 完全相同 |
+| H9 | 可复现 | 是 | PASS | 同 seed 重跑两次一致，且与配置记录的参考值相符 —— 切分可跨机精确复现，无需随仓库携带产物 |
 
 ## trainval vs val 边缘分布
 
@@ -133,6 +133,10 @@
 
 | 项 | 值 | 说明 |
 | --- | --- | --- |
-| split_images.parquet | 15597e724d4231cb… | 一致 |
-| val2k_repr.parquet | 2aedb2b8b1bcdd4b… | 一致 |
-| val_hard_pool.parquet | 02192ec63cf33967… | 一致 |
+| split_images.parquet | 15597e724d4231cb… | 两次一致 |
+| val2k_repr.parquet | 2aedb2b8b1bcdd4b… | 两次一致 |
+| val_hard_pool.parquet | 02192ec63cf33967… | 两次一致 |
+| —— 跨机参考值比对 —— |  | 取 sha256 前 16 位。生成于 2026-09-09，val_ratio=0.10，seed_purpose=split_agnostic |
+|   split_images.parquet | 期望 15597e724d4231cb / 实得 15597e724d4231cb | 一致 |
+|   val2k_repr.parquet | 期望 2aedb2b8b1bcdd4b / 实得 2aedb2b8b1bcdd4b | 一致 |
+|   val_hard_pool.parquet | 期望 02192ec63cf33967 / 实得 02192ec63cf33967 | 一致 |

@@ -69,6 +69,28 @@ min_ann_for_reliable: 200
 # 切片框数低于此值 → 报告中标 UNRELIABLE，必须带 bootstrap CI，
 # 且禁止对该切片下强结论。
 
+# ---- 可复现锚点 ------------------------------------------------------------
+#
+# 切分产物（runs/splits/*.parquet，约 4.2 MB）**不进仓库** —— 它们是
+# 派生数据，由 raw zip → data/ → tables/ → splits/ 这条确定性链路重建，
+# 全程 1.4 秒。
+#
+# 但"可重建"必须能被验证，否则只是一句声称。所以把参考 sha256 记在这里，
+# S3-H9 门会拿重建结果与它比对：
+#
+#   自我一致性  同 seed 连跑两次 → 产物 sha256 相同（原有判据）
+#   跨机可复现  重建结果 == 下面记录的参考值（新增判据）
+#
+# 后者更强 —— 它能发现"在这台机器上自洽、但换台机器/换个时间就变了"的问题。
+#
+# ⚠️ 若有意改动划分逻辑或 seed，这些值会失配，属**预期行为**：
+#    确认改动正确后更新这里的参考值，并在 commit message 里说明原因。
+expected_sha256:
+  split_images.parquet: 15597e724d4231cb
+  val2k_repr.parquet: 2aedb2b8b1bcdd4b
+  val_hard_pool.parquet: 02192ec63cf33967
+expected_sha256_note: "取 sha256 前 16 位。生成于 2026-09-09，val_ratio=0.10，seed_purpose=split_agnostic"
+
 # ---- 供后续选 Top-N 参考（本阶段不划分副轨）--------------------------------
 topn:
   deferred_to: training_stage

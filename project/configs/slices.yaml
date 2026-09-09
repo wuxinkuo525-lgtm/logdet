@@ -160,6 +160,29 @@ review_provenance:
   - 73576
   - 73736
   - 83288
+
+  # ⚠️ 人工判断，**跑代码产不出来**，必须随仓库留存。
+  #
+  # 其余产物（parquet / 预测 / 指标）都能由脚本确定性重建，
+  # 唯独这 6 个标签是人看图做的判断。早期它们只以散文形式存在于 README，
+  # 重跑 s2_merge_human_labels.py 需要从正文里手抄参数 —— 现补成机器可读。
+  #
+  # 60 个 VLM 预标已硬编码在 scripts/s2_apply_vlm_labels.py 的 LABELS 字典里。
+  #
+  # 复现命令：
+  #   python scripts/s2_apply_vlm_labels.py
+  #   python scripts/s2_merge_human_labels.py --set 67607=0 73597=0 73576=0 \
+  #       83288=0 73736=0 '106646=?'
+  #   （zsh 下 ? 必须加引号，否则被当通配符）
+  human_labels:
+    67607: '0'   # VLM 标 ? → 人工判 0（放大后能看清，logo 完整）
+    73597: '0'   # 同上
+    73576: '0'   # 同上
+    83288: '0'   # 同上
+    73736: '0'   # VLM 也标 0（z-order：该框是遮挡者），人机一致
+    106646: '?'  # 9×5 px 共 45 像素，维持不确定 —— 更像标注缺陷而非难例
+  human_vlm_disagreements: 4 # 全部是 ?→0，即人工能看清而缩略图看不清
+
   reporting_requirement: '报告中必须标注为 "VLM-assisted, N/60 human-reviewed" 并注明所用模型， **禁止简写为「人工核验」**。这是学术诚信要求。
 
     '
