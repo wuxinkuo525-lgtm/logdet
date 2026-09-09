@@ -1,6 +1,6 @@
 # S0 环境实测快照
 
-生成时间：2026-09-07 16:55:44
+生成时间：2026-09-09 15:32:55
 由 `scripts/s0_verify_env.py` 自动生成，**不要手改** —— 重跑脚本即可刷新。
 
 **推荐 device：`mps`**（已写入 `configs/runtime.yaml`）
@@ -9,7 +9,7 @@
 
 | 门 | 名称 | 阻塞 | 结果 | 说明 |
 | --- | --- | --- | --- | --- |
-| G1 | 依赖版本对账 | 是 | PASS | 精确锁 9 项全部一致，范围锁 4 项已记录 |
+| G1 | 依赖版本对账 | 是 | PASS | 精确锁 9 项全部一致，范围锁 5 项已记录 |
 | G2 | MPS 可用性 | 否 | PASS | MPS 可用 |
 | G3 | pycocotools 冒烟 | 是 | PASS | 完美预测得满分，评测器与 numpy ABI 均正常 |
 | G4 | MPS/CPU 数值一致 | 否 | PASS | 一致（feat 1.42e-05，box 0.001px），推荐 device=mps |
@@ -43,6 +43,7 @@
 | matplotlib | >=3.9,<4 | 3.11.1 | 范围锁·仅记录 |
 | pytest | >=8.3,<9 | 8.4.2 | 范围锁·仅记录 |
 | pyyaml | >=6.0,<7 | 6.0.3 | 范围锁·仅记录 |
+| scipy | >=1.11,<2 | 1.17.1 | 范围锁·仅记录 |
 | tqdm | >=4.66,<5 | 4.70.0 | 范围锁·仅记录 |
 
 ## G2 MPS 可用性 明细
@@ -82,4 +83,4 @@
 | artifacts | /Users/qiuyuantang/Desktop/logdet/runs |
 | raw | /Users/qiuyuantang/Desktop/logdet/raw |
 | cache | /Users/qiuyuantang/.cache |
-| dataset 是否已存在 | 否（S1 尚未下载，正常） |
+| dataset 是否已存在 | 是 |

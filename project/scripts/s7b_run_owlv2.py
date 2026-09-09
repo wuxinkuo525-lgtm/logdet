@@ -2,7 +2,7 @@
 """S7b 步骤三：OWLv2 全量推理。
 
 prompt 由 s7b_select_prompt.py 在 **trainval** 上选定（不碰 val，无泄漏）。
-设备由 s7b_probe_owlv2.py 实测选定（MPS 比 CPU 快 4.3 倍 —— OWLv2 是纯 ViT，
+设备由 s7b_probe_owlv2.py 实测选定（MPS 比 CPU 快 4.44 倍 —— OWLv2 是纯 ViT，
 没有 roi_align 与逐类 NMS，所以不会像 S7 的 Faster R-CNN 那样在 MPS 上崩）。
 
 启动时会**重跑一次几何对齐验证**：代码路径合并后必须确认没退化。

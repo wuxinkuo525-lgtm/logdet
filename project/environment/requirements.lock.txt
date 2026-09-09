@@ -50,6 +50,18 @@ pyyaml>=6.0,<7
 tqdm>=4.66,<5
 matplotlib>=3.9,<4
 
+# transformers 的 Owlv2ImageProcessor 的**隐式**依赖：它用 scipy 做
+# anti-aliasing resize，缺了会在 S7b 第一次构造 processor 时抛
+# `Owlv2ImageProcessor requires scipy`。
+#
+# ⚠️ 这一行是补进来的 —— 早期锁文件漏了它，导致「全新环境按 s0_setup_env.sh
+#    建好后能跑通 S0–S7，却在 S7b 挂掉」。范围锁而非精确锁，因为它只参与
+#    图像预处理的插值实现，不参与任何指标计算。
+#
+# 本机若因文件守卫拦住源码构建而装不上，改用只取 wheel：
+#     pip install --only-binary :all: scipy
+scipy>=1.11,<2
+
 # 单测
 pytest>=8.3,<9
 

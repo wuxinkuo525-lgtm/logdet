@@ -1,6 +1,6 @@
 # S6 切片评测报告（val_hard_pool）
 
-生成时间：2026-09-09 11:58:47
+生成时间：2026-09-09 15:45:05
 
 由验证脚本自动生成，**不要手改** —— 重跑脚本即可刷新。
 
@@ -14,7 +14,7 @@
 | L4 | 差异化抖动可检出 | 是 | PASS | T1 切片 AP=0.2155 显著低于 CLEAN=0.9583（差 +0.7429）—— 切片评测具备分辨力 |
 | L5 | UNRELIABLE 与 CI | 是 | PASS | 不可靠切片全部带 CI，可靠切片不带 —— 符合规则 |
 | L6 | 与原生 areaRng 对账 | 否 | WARN | 两种口径的数值差异已逐档记录；报告中必须注明用的是切片视图口径 |
-| L7 | 报告完整性 | 否 | PASS | 11 个切片的表结构完整，可供 S7 直接复用 |
+| L7 | 报告完整性 | 否 | PASS | 12 个切片的表结构完整，可供 S7 直接复用 |
 | L8 | 残差切片拆解污染 | 是 | PASS | 剔除 T1 后两个残差切片都回到 CLEAN 水平 —— 证明下降全部来自交叉污染 |
 
 ## 切片评测演示（合成预测：T1 成员 ε=0.25，其余 ε=0.05）
@@ -31,6 +31,7 @@
 | DENSITY_5plus | density | 555 | 70 | 是 | 0.7979 | 0.9892 | — |
 | SIZE_large_noT1 | residual | 620 | 536 | 是 | 0.8329 | 1.0000 | — |
 | DENSITY_1_noT1 | residual | 591 | 591 | 是 | 0.8383 | 1.0000 | — |
+| T1_large | controlled | 372 | 341 | 是 | 0.3208 | 0.9050 | — |
 | CLEAN | control | 908 | 766 | 是 | 0.8304 | 1.0000 | — |
 
 ## 口径声明
@@ -54,6 +55,7 @@
 | DENSITY_5plus | 非ignore 555 / 成员 555 | ignore 1,544，合计 2,099 |
 | SIZE_large_noT1 | 非ignore 620 / 成员 620 | ignore 1,479，合计 2,099 |
 | DENSITY_1_noT1 | 非ignore 591 / 成员 591 | ignore 1,508，合计 2,099 |
+| T1_large | 非ignore 372 / 成员 372 | ignore 1,727，合计 2,099 |
 | CLEAN | 非ignore 908 / 成员 908 | ignore 1,191，合计 2,099 |
 | 全体框数 | 2,099 | 每个视图的总框数都必须等于它 |
 
@@ -82,6 +84,7 @@
 | DENSITY_5plus | AP=1.000000 | n_ann=555 |
 | SIZE_large_noT1 | AP=1.000000 | n_ann=620 |
 | DENSITY_1_noT1 | AP=1.000000 | n_ann=591 |
+| T1_large | AP=1.000000 | n_ann=372 |
 | CLEAN | AP=1.000000 | n_ann=908 |
 
 ## L4 差异化抖动可检出 明细
@@ -116,6 +119,7 @@
 | DENSITY_5plus | n_ann=555 | 无 CI（样本充足） |
 | SIZE_large_noT1 | n_ann=620 | 无 CI（样本充足） |
 | DENSITY_1_noT1 | n_ann=591 | 无 CI（样本充足） |
+| T1_large | n_ann=372 | 无 CI（样本充足） |
 | CLEAN | n_ann=908 | 无 CI（样本充足） |
 | 规则 | n_ann < 200 → 标 UNRELIABLE 且必须带 CI | 样本充足的切片不算 CI（每次要重跑 n_boot 遍评测，很贵） |
 
@@ -133,7 +137,7 @@
 
 | 项 | 值 | 说明 |
 | --- | --- | --- |
-| 切片数 | 11 |  |
+| 切片数 | 12 |  |
 | 必需列齐全 | True |  |
 | AP 为 nan 的切片 | 0 | 只允许空切片为 nan |
 | 落盘 | metrics/s6_slice_demo_val_hard_pool.parquet | S7 会用同样的表结构 |
