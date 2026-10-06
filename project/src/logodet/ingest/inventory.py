@@ -61,7 +61,7 @@ def scan_dataset(
         # 超类目录下若直接躺着文件，属于结构异常
         for entry in sc_dir.iterdir():
             if entry.is_file() and entry.name not in ignore_names:
-                rep.depth_anomalies.append(str(entry.relative_to(root)))
+                rep.depth_anomalies.append(entry.relative_to(root).as_posix())
 
         brands = sorted(
             d for d in sc_dir.iterdir() if d.is_dir() and d.name not in ignore_names
@@ -77,7 +77,7 @@ def scan_dataset(
                 if f.name in ignore_names:
                     continue
                 if f.is_dir():
-                    rep.depth_anomalies.append(str(f.relative_to(root)))
+                    rep.depth_anomalies.append(f.relative_to(root).as_posix())
                     continue
 
                 rep.n_files += 1
@@ -98,7 +98,11 @@ def scan_dataset(
                         "xml_bytes": 0,
                     },
                 )
-                rel = str(f.relative_to(root))
+                # 用 as_posix() 而不是 str()：Windows 上 Path.relative_to()
+                # 转字符串会用反斜杠，但 zip 内部路径规范强制用正斜杠 —— 两边
+                # 分隔符对不上会导致 S2 从 zip 读 XML 时按 rel_path 查表全部
+                # 失配（inventory 里存的是这份 rel_path，是下游唯一真源）。
+                rel = f.relative_to(root).as_posix()
                 size = f.stat().st_size
 
                 if ext in image_exts:

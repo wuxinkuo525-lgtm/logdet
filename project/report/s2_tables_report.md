@@ -1,6 +1,6 @@
 # S2 中间表验证报告
 
-生成时间：2026-09-08 06:35:54
+生成时间：2026-09-15 00:13:27
 
 由验证脚本自动生成，**不要手改** —— 重跑脚本即可刷新。
 
@@ -173,7 +173,7 @@
 |   归因 | nesting=17, real_occl=3, too_small=2, unreadable=2, z_order=1 |  |
 | P3 形状离群 | precision=0.176  (6/34) | DEMOTED → exploratory_column_only；根因 class_internal_bimodality |
 |   归因 | natural=14, bimodal=13, real_persp=3, real_trunc=2, ann_defect=1, unreadable=1, nesting=1 |  |
-| 核验来源 | VLM 预标 60 / 人工复核 0 | 报告须写 VLM-assisted, N/60 human-reviewed，禁止简写为「人工核验」 |
+| 核验来源 | VLM 预标 60 / 人工复核 6 | 报告须写 VLM-assisted, N/60 human-reviewed，禁止简写为「人工核验」 |
 
 ## G10 P3 离群率 明细
 

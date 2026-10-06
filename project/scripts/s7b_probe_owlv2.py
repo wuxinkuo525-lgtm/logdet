@@ -41,6 +41,7 @@ from logodet.baselines.owlv2_detector import (  # noqa: E402
     detect,
     load_owlv2,
     synthetic_alignment_check,
+    verify_device_consistency,
 )
 from logodet.config import load_yaml  # noqa: E402
 from logodet.data.core_dataset import CoreDataset, ZipImageReader  # noqa: E402
@@ -109,24 +110,51 @@ def main() -> int:
     core = build_core(N_PROBE)
     imgs = [core[i].image for i in range(len(core))]
 
+    def _sync(dev: str) -> None:
+        if dev == "mps":
+            torch.mps.synchronize()
+        elif dev == "cuda":
+            torch.cuda.synchronize()
+
     rates: dict[str, float] = {}
-    devices = ["cpu"] + (["mps"] if torch.backends.mps.is_available() else [])
+    devices = ["cpu"]
+    if torch.cuda.is_available():
+        devices.append("cuda")
+    if torch.backends.mps.is_available():
+        devices.append("mps")
     for dev in devices:
         model.to(dev)
         detect(processor, model, imgs[0], ["a logo"], device=dev)  # 预热
-        if dev == "mps":
-            torch.mps.synchronize()
+        _sync(dev)
         t0 = time.time()
         for k, im in enumerate(imgs):
             detect(processor, model, im, ["a logo"], device=dev, image_id=k)
-        if dev == "mps":
-            torch.mps.synchronize()
+        _sync(dev)
         dt = time.time() - t0
         rates[dev] = len(imgs) / dt
         print(f"      {dev:<5} {rates[dev]:>6.3f} img/s   "
               f"全集 {N_INFER / rates[dev] / 60:>6.1f} 分钟")
 
-    best_dev = max(rates, key=rates.get)
+    # 非 cpu 候选必须先过数值一致性验证才能被选中 —— 照搬 S7 的教训：
+    # 「明显更快」不等于「可以直接用」，TF32 之类的漂移会在这里现形。
+    consistency: dict[str, dict[str, float]] = {}
+    verified = {"cpu"}
+    for dev in devices:
+        if dev == "cpu":
+            continue
+        ok, stats = verify_device_consistency(
+            processor, model, imgs[:4], ["a logo"], other_device=dev
+        )
+        consistency[dev] = stats
+        print(f"      [一致性 {dev} vs cpu] "
+              f"box_diff={stats['max_box_diff_px']:.4g}px "
+              f"score_diff={stats['max_score_diff']:.4g} "
+              f"→ {'一致' if ok else '不一致，禁用'}")
+        if ok:
+            verified.add(dev)
+
+    best_dev = max((d for d in devices if d in verified), key=rates.get)
+    model.to(best_dev)
     print(f"      → 选定 device={best_dev}"
           f"（{N_INFER / rates[best_dev] / 60:.1f} 分钟）")
 
@@ -163,6 +191,7 @@ def main() -> int:
         "alignment_ok": bool(ok_align),
         "alignment_cases": cases,
         "rates_img_per_sec": {k: float(v) for k, v in rates.items()},
+        "device_consistency": consistency,
         "chosen_device": best_dev,
         "eta_minutes": {k: float(N_INFER / v / 60) for k, v in rates.items()},
         "target_sizes_convention": "padded square side = max(H, W)，不是 (H, W)",

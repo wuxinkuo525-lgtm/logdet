@@ -1,0 +1,5 @@
+# 变体：关掉 Prototype / Hierarchy 两个辅助分支（消融）。叠在基础预设后面用：
+#   --hparams configs/dino/hparams/shared5k.yaml configs/dino/hparams/mods/noaux.yaml
+# 权重为 0 时两个 loss 仍会算出来写进日志（值恒为 0），但不产生梯度。
+loss_prototype_weight: 0.0
+loss_hierarchy_weight: 0.0

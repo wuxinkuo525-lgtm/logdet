@@ -1,6 +1,6 @@
 # S4 dataloader 验证报告
 
-生成时间：2026-09-08 16:00:55
+生成时间：2026-09-15 00:14:21
 
 由验证脚本自动生成，**不要手改** —— 重跑脚本即可刷新。
 
@@ -9,10 +9,10 @@
 | 门 | 名称 | 阻塞 | 结果 | 说明 |
 | --- | --- | --- | --- | --- |
 | J1 | 逐样本正确性 | 是 | PASS | 200 个样本的坐标、标签、ann_ids、尺寸全部正确 |
-| J2 | 可视化抽检 | 否 | PASS | 20 张画框图已落盘到 cache/s4_viz，请人眼确认框位置正确（本项目唯一允许的主观检查） |
+| J2 | 可视化抽检 | 否 | PASS | 20 张画框图已落盘到 cache\s4_viz，请人眼确认框位置正确（本项目唯一允许的主观检查） |
 | J3 | collate 变长 | 是 | PASS | 变长框未被 pad，ann_ids 长度对齐 |
 | J4 | 确定性 | 是 | PASS | 两次遍历的 id 序列与张量内容完全一致 |
-| J5 | 吞吐 | 是 | PASS | 最优 num_workers=0，905.5 img/s（门槛 60） |
+| J5 | 吞吐 | 是 | PASS | 最优 num_workers=0，752.6 img/s（门槛 60） |
 | J6 | worker 安全 | 是 | PASS | worker 只产 CPU 张量，且出口断言能拦住违规 |
 | J7 | 路径解耦 | 是 | PASS | 错误路径会抛带处置建议的异常 |
 
@@ -41,7 +41,7 @@
 | 项 | 值 | 说明 |
 | --- | --- | --- |
 | 落盘张数 | 20 |  |
-| 目录 | /Users/qiuyuantang/Desktop/logdet/runs/cache/s4_viz |  |
+| 目录 | E:\ntu\computer_vision\cvproject\logdet\runs\cache\s4_viz |  |
 
 ## J3 collate 变长 明细
 
@@ -67,8 +67,8 @@
 
 | 项 | 值 | 说明 |
 | --- | --- | --- |
-| num_workers=0 | 905.5 img/s | 600 图 / 0.7s |
-| 最优配置 | num_workers=0 | 905.5 img/s |
+| num_workers=0 | 752.6 img/s | 600 图 / 0.8s |
+| 最优配置 | num_workers=0 | 752.6 img/s |
 | 门槛 | >= 60 img/s | 达标 |
 | 图像通路 | zip | 磁盘实测仅 38.7 img/s，见 bench_image_read.py |
 
@@ -88,4 +88,4 @@
 | --- | --- | --- |
 | 抛 FileNotFoundError | True | 必须 True，不能静默返回空 |
 | 错误信息含 dataset_root 提示 | True | 必须 True |
-| 错误信息首行 | 图像不存在：/nonexistent/logdet/data/LogoDet-3K/Clothes/2xist/1.jp |  |
+| 错误信息首行 | 图像不存在：\nonexistent\logdet\data\LogoDet-3K\Clothes\2xist\1.jp |  |

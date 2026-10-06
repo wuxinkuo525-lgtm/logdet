@@ -41,12 +41,21 @@ from typing import Any, Literal, Sequence
 
 import numpy as np
 import torch
+
+# 禁用 TF32：Ampere/Ada 系 GPU 默认允许在 fp32 卷积/矩阵乘上用 TF32
+# （10 位尾数，比 fp32 的 23 位少很多）换取速度，代价是比纯 fp32 大得多的
+# 数值漂移。本项目的设备一致性验证照搬 S0-G4 的原则——"宁可慢，也不要
+# 一个数值上不可信的后端出指标"，TF32 的漂移量级正好会让这条验证失真，
+# 所以在这里就近关掉，而不是在验证门里放宽阈值去将就它。
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
+
 from torchvision.models.detection import (
     FasterRCNN_ResNet50_FPN_V2_Weights,
     fasterrcnn_resnet50_fpn_v2,
 )
 
-DeviceMode = Literal["cpu", "mps", "hybrid"]
+DeviceMode = Literal["cpu", "mps", "cuda", "hybrid"]
 
 
 @dataclass
@@ -91,6 +100,19 @@ def load_model(*, box_score_thresh: float = 0.01, rpn_post_nms_top_n: int = 300)
     return model, weights
 
 
+def _synchronize(device: torch.device) -> None:
+    """按耗材类型同步，让分段计时（timers）反映真实的设备内耗时。
+
+    CUDA/MPS 上算子是异步派发的，不同步就测量分段耗时会把下一段的
+    等待时间记到上一段头上。最终返回值本身不受影响（读回 CPU 的
+    .numpy() 会隐式同步），只有诊断脚本里的分段耗时表会失真。
+    """
+    if device.type == "mps":
+        torch.mps.synchronize()
+    elif device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
 @torch.inference_mode()
 def forward_one(
     model,
@@ -127,8 +149,7 @@ def forward_one(
     images_list, _ = model.transform([x])
     feats = model.backbone(images_list.tensors)
     proposals, _ = model.rpn(images_list, feats)
-    if dev_front.type == "mps":
-        torch.mps.synchronize()
+    _synchronize(dev_front)
     t1 = tick()
 
     # RPN 的 objectness 没有被 torchvision 返回，只能重算一次头部得分。
@@ -136,15 +157,21 @@ def forward_one(
     obj_scores = _rpn_objectness(model, images_list, feats, proposals, dev_front)
 
     # ---- 后段：roi_heads -------------------------------------------------
+    # 无条件挪到 dev_back（同设备时 .to() 是no-op，不额外费钱）：
+    # 之前只在 mode == "hybrid" 时才挪，纯 cpu/纯 cuda 这种"全程同一设备"
+    # 模式下 roi_heads 从未被显式归位，全靠"当前只有 cpu/hybrid 两种模式、
+    # 且 hybrid 恰好总把 roi_heads 挪去 cpu"这个巧合才没暴露成 bug——
+    # 一旦连续调用 forward_one(mode="cpu") 再 forward_one(mode="cuda")，
+    # roi_heads 权重还留在上一次调用挪去的设备上，与本次的 cuda 特征图
+    # 设备不匹配，直接报 RuntimeError。
     if mode == "hybrid":
         feats = {k: v.to(dev_back) for k, v in feats.items()}
         proposals = [p.to(dev_back) for p in proposals]
-        model.roi_heads.to(dev_back)
+    model.roi_heads.to(dev_back)
     t2 = tick()
 
     detections, _ = model.roi_heads(feats, proposals, images_list.image_sizes)
-    if dev_back.type == "mps":
-        torch.mps.synchronize()
+    _synchronize(dev_back)
     t3 = tick()
 
     # ---- 坐标映射回原图 --------------------------------------------------
@@ -195,12 +222,15 @@ def _rpn_objectness(model, images_list, feats, proposals, device) -> np.ndarray:
 
 
 def verify_device_consistency(
-    model, images: Sequence[torch.Tensor], *, atol: float = 1e-3
+    model, images: Sequence[torch.Tensor], *, other_mode: DeviceMode = "hybrid",
+    atol: float = 1e-3,
 ) -> tuple[bool, dict[str, float]]:
-    """hybrid 与纯 CPU 必须给出一致的结果，否则不能用 hybrid。
+    """`other_mode`（hybrid 或 cuda）与纯 CPU 必须给出一致的结果，否则不能用。
 
     照搬 S0-G4 的做法：跨设备的数值差异要先验证再采用，
-    不能因为"看起来能跑"就直接上。
+    不能因为"看起来能跑"就直接上。CUDA 原生支持 roi_align/NMS，理论上
+    不该有 MPS 那种算子回退问题，但"理论上没问题"不是"验证过没问题"，
+    所以走同一套验证，不给 CUDA 开后门。
     """
     max_box_diff = 0.0
     max_score_diff = 0.0
@@ -208,7 +238,7 @@ def verify_device_consistency(
 
     for i, img in enumerate(images):
         a = forward_one(model, img, i, mode="cpu")
-        b = forward_one(model, img, i, mode="hybrid")
+        b = forward_one(model, img, i, mode=other_mode)
         if a.det_boxes.shape != b.det_boxes.shape:
             n_mismatch += 1
             continue

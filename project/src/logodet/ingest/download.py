@@ -35,35 +35,60 @@ class DownloadResult:
     skipped: bool  # True 表示复用了已有文件，没有真的下载
 
 
-def read_kaggle_credentials() -> tuple[str, str]:
-    """从 ~/.kaggle/kaggle.json 读凭据；环境变量优先（CI 场景）。"""
+@dataclass(frozen=True)
+class KaggleCredentials:
+    """Kaggle 认证信息，两种互斥模式：
+
+    - "basic"：传统 kaggle.json 的 username + key，curl 用 `-u user:key`
+    - "bearer"：较新的 "API Access Token"（单个 KGAT_ 开头的字符串，
+      Kaggle 后台没有配对 username 时发的那种），curl 用
+      `Authorization: Bearer <token>` 头
+    """
+
+    mode: str
+    username: str | None = None
+    key: str | None = None
+    token: str | None = None
+
+
+def read_kaggle_credentials() -> KaggleCredentials:
+    """读凭据，按优先级：环境变量 bearer token → 环境变量 user/key → kaggle.json。"""
+    env_token = os.environ.get("KAGGLE_API_TOKEN")
+    if env_token:
+        return KaggleCredentials(mode="bearer", token=env_token)
+
     env_user = os.environ.get("KAGGLE_USERNAME")
     env_key = os.environ.get("KAGGLE_KEY")
     if env_user and env_key:
-        return env_user, env_key
+        return KaggleCredentials(mode="basic", username=env_user, key=env_key)
 
     cred = Path.home() / ".kaggle" / "kaggle.json"
     if not cred.is_file():
         raise CredentialError(
-            f"找不到 {cred}。\n"
-            "获取方式：Kaggle → Account → API → Create New Token，"
-            "把下载的 kaggle.json 放到 ~/.kaggle/ 并 chmod 600。"
+            f"找不到凭据。任选一种：\n"
+            f"  1) export KAGGLE_API_TOKEN=<你的 API Access Token>\n"
+            f"  2) export KAGGLE_USERNAME=... KAGGLE_KEY=...\n"
+            f"  3) 把 kaggle.json 放到 {cred}\n"
+            "获取方式：Kaggle → Settings → API → Create New Token。"
         )
 
-    # 权限不对只警告不拦路 —— 这是安全建议，不是功能前提
-    mode = cred.stat().st_mode & 0o777
-    if mode & 0o077:
-        print(f"  [warn] {cred} 权限为 {mode:o}，建议 chmod 600", file=sys.stderr)
+    # 权限不对只警告不拦路 —— 这是安全建议，不是功能前提（Windows 上没有 0o777 语义，跳过检查）
+    mode_bits = cred.stat().st_mode & 0o777
+    if os.name != "nt" and mode_bits & 0o077:
+        print(f"  [warn] {cred} 权限为 {mode_bits:o}，建议 chmod 600", file=sys.stderr)
 
     try:
         data = json.loads(cred.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise CredentialError(f"{cred} 不是合法 JSON：{e}") from e
 
+    if data.get("token"):
+        return KaggleCredentials(mode="bearer", token=data["token"])
+
     user, key = data.get("username"), data.get("key")
     if not user or not key:
-        raise CredentialError(f"{cred} 缺少 username 或 key 字段")
-    return user, key
+        raise CredentialError(f"{cred} 既没有 token 字段，也缺少 username/key 字段")
+    return KaggleCredentials(mode="basic", username=user, key=key)
 
 
 def download_dataset(*, force: bool = False, quiet: bool = False) -> DownloadResult:
@@ -86,7 +111,7 @@ def download_dataset(*, force: bool = False, quiet: bool = False) -> DownloadRes
         if not quiet:
             print(f"  已存在但偏小（{size / 1e9:.2f} GB），断点续传 ...")
 
-    user, key = read_kaggle_credentials()
+    creds = read_kaggle_credentials()
     P.raw.mkdir(parents=True, exist_ok=True)
 
     cmd = [
@@ -96,10 +121,16 @@ def download_dataset(*, force: bool = False, quiet: bool = False) -> DownloadRes
         "--retry", "5",
         "--retry-delay", "3",
         "--fail-with-body",     # HTTP 4xx/5xx 时非零退出，而不是把错误页写进 zip
-        "-u", f"{user}:{key}",
-        "-o", str(zip_path),
-        src["kaggle_api"],
     ]
+    if creds.mode == "bearer":
+        # 新版 "API Access Token"：单个 token，走 Authorization 头而非 Basic Auth。
+        # -L 跟随重定向时 curl 只在同源才转发自定义头；Kaggle 会 302 到
+        # storage.googleapis.com 的签名 URL，该 URL 自带认证参数，不需要
+        # 也不应该带着 Authorization 头过去 —— 实测这样能正常工作。
+        cmd += ["-H", f"Authorization: Bearer {creds.token}"]
+    else:
+        cmd += ["-u", f"{creds.username}:{creds.key}"]
+    cmd += ["-o", str(zip_path), src["kaggle_api"]]
     if quiet:
         cmd.insert(1, "-s")
 

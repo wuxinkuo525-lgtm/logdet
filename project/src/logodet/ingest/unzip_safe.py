@@ -181,18 +181,35 @@ def preflight(zip_path: Path, dest: Path) -> PreflightReport:
     return rep
 
 
-def _extract_with_ditto(zip_path: Path, dest: Path) -> None:
-    """用 macOS 原生 ditto 解压。比逐文件 Python 快一到两个数量级。"""
+def _extract_fast_native(zip_path: Path, dest: Path) -> str:
+    """尽量用系统原生工具批量解压，比逐文件 Python 循环快一到两个数量级。
+
+    优先级：
+      1. ``ditto``   —— macOS 原生，本项目最初就是给它写的
+      2. ``zipfile.extractall`` —— 标准库兜底，跨平台行为一致
+
+    刻意不用系统 ``tar``：tar 格式与 zip 是两种不同的容器格式，GNU tar
+    （Linux、以及 Windows 上 Git 自带的那份）读不了 zip，只有 macOS/BSD
+    的 bsdtar（基于 libarchive）可以 —— 但同名命令在 PATH 上到底解析到
+    哪一个因机器而异，`shutil.which("tar")` 赌不出来，一旦赌错就是直接
+    运行时报错。zipfile 是标准库，行为在任何平台上都确定。
+
+    返回实际用上的工具名，写进 ``UnzipReport.path_used`` 便于事后核对。
+    """
     ditto = shutil.which("ditto")
-    if not ditto:
-        raise FileNotFoundError("找不到 ditto")
-    proc = subprocess.run(
-        [ditto, "-x", "-k", "--sequesterRsrc", str(zip_path), str(dest)],
-        capture_output=True,
-        text=True,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"ditto 退出码 {proc.returncode}: {proc.stderr[:500]}")
+    if ditto:
+        proc = subprocess.run(
+            [ditto, "-x", "-k", "--sequesterRsrc", str(zip_path), str(dest)],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"ditto 退出码 {proc.returncode}: {proc.stderr[:500]}")
+        return "ditto"
+
+    with zipfile.ZipFile(zip_path) as zf:
+        zf.extractall(dest)
+    return "zipfile"
 
 
 def _extract_with_python(
@@ -260,10 +277,11 @@ def safe_extract(
 
     if pf.can_use_fast_path and not force_slow_path:
         if verbose:
-            print("      预检三项均无风险 → 走原生 ditto 快路径")
-        rep.path_used = "ditto"
-        _extract_with_ditto(zip_path, dest)
-        # ditto 不报文件数，落盘后现数
+            print("      预检三项均无风险 → 走原生快路径")
+        rep.path_used = _extract_fast_native(zip_path, dest)
+        if verbose:
+            print(f"        实际使用   {rep.path_used}")
+        # 原生工具不报文件数，落盘后现数
         top = dest / pf.top_dirs[0] if pf.top_dirs else dest
         rep.extracted_files = sum(1 for p in top.rglob("*") if p.is_file())
     else:

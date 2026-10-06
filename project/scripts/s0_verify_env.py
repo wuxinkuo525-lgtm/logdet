@@ -109,7 +109,16 @@ def gate_versions() -> GateResult:
             rows.append((name, want, "未安装", "FAIL"))
             bad.append(name)
             continue
-        ok = got == want
+        # 只比 PEP 440 的"公开版本号"（`+` 前面那段）。
+        #
+        # torch/torchvision 在不同平台上会给同一个发行版本追加不同的
+        # 本地构建标签：Windows 上 CUDA 版是 "2.5.1+cu124"、CPU 版是
+        # "2.5.1+cpu"，而 macOS/Linux 的 wheel 通常没有这个后缀。
+        # 这个标签只说明装的是哪种硬件后端的构建，不代表换了发行版本——
+        # 真正的"换后端会不会改变数值"由 S0-G4 / S7 的一致性验证负责，
+        # 不该让 G1 在这里把构建标签误判成版本漂移。
+        got_public = got.split("+", 1)[0]
+        ok = got_public == want
         rows.append((name, want, got, "ok" if ok else "MISMATCH"))
         if not ok:
             bad.append(f"{name}(want {want}, got {got})")

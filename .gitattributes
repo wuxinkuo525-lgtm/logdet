@@ -1,0 +1,2 @@
+# 集群上的 shell 脚本必须是 LF 换行，否则 sbatch / bash 直接报错
+*.sh text eol=lf

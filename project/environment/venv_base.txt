@@ -1,0 +1,7 @@
+# 由 scripts/s0_setup_env.sh 自动生成
+# venv 通过符号链接依赖下面这个基础解释器；若它被删除，venv 会失效。
+# 重建：BASE_PYTHON=<任意 python3.11 或 3.12> bash scripts/s0_setup_env.sh
+base_python=/d/condamini/envs/logodet_base/python.exe
+base_version=3.11.16
+venv_dir=E:/ntu/computer_vision/cvproject/logdet/.venv
+created_at=2026-09-14T15:42:36Z

@@ -60,8 +60,20 @@ def build_coco_gt(
             if "class_name" in ann.columns
             else {}
         )
+        # 细类模式下 supercategory 用真实的 9 超类（而不是字面量 "logo"）——
+        # 这是 COCO 格式里唯一原生带层级的字段，多分类任务（比如带
+        # superclass 辅助头的 DINO）可以直接从这里读，不用额外解析。
+        supercat_of = (
+            ann.drop_duplicates("class_id").set_index("class_id")["supercat"].to_dict()
+            if "supercat" in ann.columns
+            else {}
+        )
         categories = [
-            {"id": int(c), "supercategory": "logo", "name": str(name_of.get(c, c))}
+            {
+                "id": int(c),
+                "supercategory": str(supercat_of.get(c, "logo")),
+                "name": str(name_of.get(c, c)),
+            }
             for c in cats
         ]
         cat_of = ann["class_id"].to_numpy(dtype="int64")

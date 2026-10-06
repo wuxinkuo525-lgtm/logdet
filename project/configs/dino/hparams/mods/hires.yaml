@@ -1,0 +1,10 @@
+# 变体：放大输入。LogoDet-3K 原图只有约 480×400，小目标是最大的短板
+# （上一次训练 SIZE_small AP50 0.038，是唯一输给 OWLv2 的切片），放大后小 logo 占的像素更多。
+#
+# 吃显存。batch 1 实测峰值（RTX 4070 12 GB）：短边 608 → 7.5 GB，672 → 9.9 GB，736 → 10.6 GB。
+# 本机 Windows 上 672 起显存就溢出到共享内存：每 iter 5 秒（正常 0.6 秒）且存档时崩溃，
+# 所以这个变体**只在集群上跑**；集群 GPU 不够大时扫描脚本会自动放弃它。
+min_short_side: 512
+max_short_side: 672
+max_long_side: 1000
+test_short_side: 608

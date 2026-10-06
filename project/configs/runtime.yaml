@@ -3,6 +3,6 @@
 #   一致  → mps
 #   超差  → cpu（宁可慢，也不要用一个数值上不可信的后端出指标）
 
-device: mps
-verified_at: 2026-09-09T15:32:55
-g4_detail: "一致（feat 1.42e-05，box 0.001px），推荐 device=mps"
+device: cpu
+verified_at: 2026-09-15T03:22:44
+g4_detail: "MPS 不可用，无需比对"

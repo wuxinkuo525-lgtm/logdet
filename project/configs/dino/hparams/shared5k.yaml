@@ -1,0 +1,39 @@
+# 超参预设：shared 子集（5,000 张训练图 / 256 张 dev_eval）。
+#
+# 用法：python scripts/s9_dino_train.py --mode shared            （shared 模式默认读本文件）
+#       python scripts/s9_dino_train.py --mode full --hparams configs/dino/hparams/<别的预设>.yaml
+#
+# 这是 5,000 张上「比超参」用的短跑设置（4 epoch），不是最终训练计划。
+#
+# 实验变体（消融、放大输入、长跑、衰减分叉）在 mods/ 下，都是只含几行的小文件，叠在本文件后面：
+#       --hparams configs/dino/hparams/shared5k.yaml configs/dino/hparams/mods/noaux.yaml
+#
+# 换数据规模（比如 10 万张）时复制本文件改数字即可，训练脚本和模型配置都不用动。
+# 优先级：命令行参数 > 本文件 > 模型配置里的默认值。删掉某一行 = 该项用模型配置的默认值。
+
+# ---- 训练量 ----
+epochs: 4               # 5,000 图 × 4 = 20,000 iter；RTX 4070 上 batch 1 实测 0.63 s/iter，约 3.5 小时
+batch_size: 1           # 12 GB 显存下短边 608 只放得下 1；想用 2 要把 max_short_side 压到 480
+ckpt_interval: 2000     # 每多少 iter 存一次 checkpoint；集群作业被 6 小时墙钟杀掉时最多丢这么多
+
+# ---- 学习率 ----
+lr: 1.0e-4              # 基座是 2e-4（总 batch 16）；batch 1 梯度噪声大，取一半，与上一次 shared 跑的一致
+backbone_lr_mult: 0.1   # backbone 用 lr × 0.1（基座默认）
+weight_decay: 1.0e-4
+warmup_iters: 500       # 线性 warmup；头 50 iter 的 grad_norm 在 400 以上，先压一压
+lr_decay_epochs: [3]    # 在这些 epoch 开始时 lr × lr_decay_gamma（从 0 数，[3] = 最后一个 epoch）
+lr_decay_gamma: 0.1
+
+# ---- 输入尺寸 ----
+min_short_side: 384     # 训练多尺度短边范围，每 32 一档
+max_short_side: 608
+max_long_side: 800      # 长边上限（训练和测试共用）
+test_short_side: 512    # 测试短边
+
+# ---- 辅助分支 ----
+loss_prototype_weight: 0.1
+loss_hierarchy_weight: 0.1
+proto_temperature: 0.07
+
+amp: false
+seed: 20260917          # 各组统一初始化、采样和增强种子；命令行 --seed 可覆盖

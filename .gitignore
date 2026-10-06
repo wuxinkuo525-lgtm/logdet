@@ -54,3 +54,6 @@ htmlcov/
 .vscode/
 *.swp
 *~
+
+# ---- 集群用户手册标注为 Restricted，不进仓库 ------------------------------------
+project/CCDSGPU-TC2-Masters-UserGuide.pdf

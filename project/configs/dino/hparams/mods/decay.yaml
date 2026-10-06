@@ -1,0 +1,8 @@
+# 变体：衰减分叉。配合 --init-from <长跑的某个里程碑> 和 --lr <原 lr 的 1/10> 使用：
+# 从第 N 个 epoch 的权重起步，用低学习率再训 1 个 epoch，
+# 近似「第 N 个 epoch 降学习率、总共 N+1 个 epoch」的训练计划
+# （只继承权重，优化器状态是重置的，所以是近似）。
+# 对每个里程碑各跑一次，再加上已有的 4 epoch 那组，就比出了 4 / 9 / 13 个 epoch 哪个最好。
+epochs: 1
+lr_decay_epochs: []
+warmup_iters: 0

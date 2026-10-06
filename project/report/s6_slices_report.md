@@ -1,6 +1,6 @@
 # S6 切片评测报告（val_hard_pool）
 
-生成时间：2026-09-09 15:45:05
+生成时间：2026-09-15 00:15:08
 
 由验证脚本自动生成，**不要手改** —— 重跑脚本即可刷新。
 
@@ -140,7 +140,7 @@
 | 切片数 | 12 |  |
 | 必需列齐全 | True |  |
 | AP 为 nan 的切片 | 0 | 只允许空切片为 nan |
-| 落盘 | metrics/s6_slice_demo_val_hard_pool.parquet | S7 会用同样的表结构 |
+| 落盘 | metrics\s6_slice_demo_val_hard_pool.parquet | S7 会用同样的表结构 |
 
 ## L8 残差切片拆解污染 明细
 

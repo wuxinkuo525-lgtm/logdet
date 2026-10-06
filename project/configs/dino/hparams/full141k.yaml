@@ -1,0 +1,41 @@
+# 超参预设：全量训练（141,438 张训练图，每个 epoch 结束在 val2k_repr 的 2,000 张上评测）。
+#
+# 用法：python scripts/s9_dino_train.py --mode full --resume        （full 模式默认读本文件）
+#       集群：sbatch scripts/cluster/tc2_dino.sbatch.sh full
+#
+# 哪些值是从 5,000 张调参（shared5k.yaml + mods/）搬过来的、哪些不是：
+#   搬过来的    lr、warmup、backbone_lr_mult、weight_decay、输入尺寸、辅助分支 —— 前提是 batch 不变
+#   重新定的    epochs、lr_decay_epochs —— 和数据量强相关，小数据上的结论搬不过来
+#
+# 5,000 张调参全部跑完后，按结论改这里：
+#   - 关掉辅助分支更好  → 两个 loss 权重改 0（或叠加 mods/noaux.yaml）
+#   - 放大输入更好      → 输入尺寸四行换成 mods/hires.yaml 里的值（每个 epoch 会慢约 1.4 倍）
+#   - 换了 batch        → lr 必须重新对应并先在 5,000 张上验证，不能只改 batch_size
+# 优先级：命令行参数 > 本文件 > 模型配置里的默认值。
+
+# ---- 训练量 ----
+epochs: 4               # 141,438 iter/epoch；A40 上 batch 1 实测 0.49 s/iter，每个 epoch 约 19 小时
+batch_size: 1           # 与 5,000 张调参时一致，lr 才能直接照搬
+ckpt_interval: 2000     # 集群作业被 6 小时墙钟杀掉时最多丢这么多（约 16 分钟）
+
+# ---- 学习率 ----
+lr: 1.0e-4              # 5,000 张上 1e-4 的 agn/AP 0.2333，2e-4 只有 0.1448（模型配置的默认值正是 2e-4，不能用）
+backbone_lr_mult: 0.1
+weight_decay: 1.0e-4
+warmup_iters: 500
+lr_decay_epochs: [3]    # 最后一个 epoch ×0.1。5,000 张上前三个 epoch 分数在抖，降 lr 后才升上去
+lr_decay_gamma: 0.1
+
+# ---- 输入尺寸 ----
+min_short_side: 384
+max_short_side: 608
+max_long_side: 800
+test_short_side: 512
+
+# ---- 辅助分支 ----
+loss_prototype_weight: 0.1
+loss_hierarchy_weight: 0.1
+proto_temperature: 0.07
+
+amp: false
+seed: 20260917

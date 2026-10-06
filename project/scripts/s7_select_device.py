@@ -70,17 +70,24 @@ def main() -> int:
     print(f"\n模型：Faster R-CNN ResNet50-FPN v2（{weights}）")
 
     modes = ["cpu"]
+    if torch.cuda.is_available():
+        modes.append("cuda")
     if torch.backends.mps.is_available():
         modes.append("hybrid")
 
     # ---- 一致性 ------------------------------------------------------------
-    consistent, stats = (True, {})
-    if "hybrid" in modes:
-        print("\n[1/2] hybrid vs cpu 数值一致性 ...")
-        consistent, stats = verify_device_consistency(model, tensors[:4])
+    # CUDA 原生支持 roi_align/NMS（不像 MPS 缺算子），不需要 hybrid 式的
+    # 跨设备切分，但"不需要切分"不等于"不需要验证"——照样跑一遍 cpu 对照。
+    consistency: dict[str, tuple[bool, dict[str, float]]] = {}
+    for other in ("cuda", "hybrid"):
+        if other not in modes:
+            continue
+        print(f"\n[1/2] {other} vs cpu 数值一致性 ...")
+        ok, stats = verify_device_consistency(model, tensors[:4], other_mode=other)
+        consistency[other] = (ok, stats)
         for k, v in stats.items():
             print(f"      {k:<22} {v:.6g}")
-        print(f"      判定：{'一致' if consistent else '不一致 → 禁用 hybrid'}")
+        print(f"      判定：{'一致' if ok else f'不一致 → 禁用 {other}'}")
 
     # ---- 速度 --------------------------------------------------------------
     print("\n[2/2] 速度实测（已预热）...")
@@ -99,19 +106,29 @@ def main() -> int:
               f"全集 {N_INFER / rates[mode] / 60:>5.1f} 分钟   [{seg}]")
 
     # ---- 决策 --------------------------------------------------------------
+    # 候选：cpu 永远可信任（无跨设备问题）；cuda/hybrid 只有一致性验证通过、
+    # 且比 cpu 快出有意义的margin（>15%，覆盖跨设备搬运的固定开销）才采用。
+    # 多个候选都合格时选最快的那个。
     chosen = "cpu"
-    reason = "只有 CPU 可用" if len(modes) == 1 else ""
-    if "hybrid" in modes:
-        if not consistent:
-            reason = "hybrid 与 CPU 数值不一致，按 S0-G4 的原则拒绝采用"
-        elif rates["hybrid"] <= rates["cpu"] * 1.15:
-            reason = (f"hybrid 仅快 {rates['hybrid'] / rates['cpu']:.2f}x，"
-                      f"不足以抵消跨设备复杂度")
-        else:
-            chosen = "hybrid"
-            reason = (f"一致性通过且快 {rates['hybrid'] / rates['cpu']:.2f}x "
+    reason = "只有 CPU 可用" if len(modes) == 1 else "其余候选未通过一致性或不够快"
+    best_rate = rates["cpu"]
+    for other in ("cuda", "hybrid"):
+        if other not in modes:
+            continue
+        ok, _ = consistency[other]
+        if not ok:
+            print(f"\n  [跳过] {other}：与 CPU 数值不一致，按 S0-G4 的原则拒绝采用")
+            continue
+        if rates[other] <= rates["cpu"] * 1.15:
+            print(f"\n  [跳过] {other}：仅快 {rates[other] / rates['cpu']:.2f}x，"
+                  f"不足以抵消跨设备复杂度")
+            continue
+        if rates[other] > best_rate:
+            chosen = other
+            best_rate = rates[other]
+            reason = (f"一致性通过且快 {rates[other] / rates['cpu']:.2f}x "
                       f"（{N_INFER / rates['cpu'] / 60:.0f} → "
-                      f"{N_INFER / rates['hybrid'] / 60:.0f} 分钟）")
+                      f"{N_INFER / rates[other] / 60:.0f} 分钟）")
 
     print("\n" + "=" * 76)
     print(f" 选定：device_mode = {chosen}")
@@ -122,7 +139,7 @@ def main() -> int:
     out.write_text(json.dumps({
         "chosen": chosen,
         "reason": reason,
-        "consistency": stats,
+        "consistency": {k: v[1] for k, v in consistency.items()},
         "rates_img_per_sec": rates,
         "eta_minutes": {k: N_INFER / v / 60 for k, v in rates.items()},
         "n_verify_images": N,

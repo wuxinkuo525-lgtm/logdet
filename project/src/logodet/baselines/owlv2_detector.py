@@ -37,6 +37,14 @@ from typing import Sequence
 import numpy as np
 import torch
 
+# 禁用 TF32：见 torchvision_detector.py 同名注释——Ampere/Ada 系 GPU 默认
+# 用 TF32（10 位尾数）加速 fp32 卷积/矩阵乘，数值漂移量级足以污染跨设备
+# 一致性验证（S7 在 Faster R-CNN 上已实测踩过一次：box 差 0.14px 直接
+# 被判定「不一致」，关掉后降到 0.0005px）。这里独立设置一次是因为本模块
+# 是单独的进程/脚本，不会经由 torchvision_detector.py 的导入顺带带过来。
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
+
 MODEL_ID = "google/owlv2-base-patch16-ensemble"
 
 # 候选 prompt。逗号分隔的多个 query 会被 OWLv2 当作多个类别分别打分，
@@ -140,6 +148,49 @@ def detect(
 
     return Owlv2Output(image_id=image_id, boxes_xyxy=boxes,
                        scores=scores, query_idx=best_q)
+
+
+def verify_device_consistency(
+    processor, model, images: Sequence[np.ndarray], queries: Sequence[str],
+    *, other_device: str, atol_box: float = 0.5, atol_score: float = 1e-3,
+) -> tuple[bool, dict[str, float]]:
+    """`other_device`（如 cuda）与 cpu 必须给出一致的检测结果，否则不能用。
+
+    照搬 S0-G4 / torchvision_detector.verify_device_consistency 的原则：
+    跨设备数值差异要先验证再采用，不能因为「看起来能跑」、甚至「明显更快」
+    就直接上——`synthetic_alignment_check` 验证的是坐标换算逻辑本身对不对，
+    跟这里验证的「同一份权重在不同硬件后端上算出的数值是否一致」是两件事，
+    两者都要过。
+
+    atol_box 用像素、atol_score 用原始 sigmoid 分数，量级参考
+    torchvision 那边 hybrid/cuda 对 cpu 实测的 1e-3~1e-5 级别，
+    留了一些余量给不同模型架构的算子差异。
+    """
+    max_box_diff = 0.0
+    max_score_diff = 0.0
+    n_mismatch = 0
+    orig_device = next(model.parameters()).device
+
+    for img in images:
+        model.to("cpu")
+        a = detect(processor, model, img, queries, device="cpu")
+        model.to(other_device)
+        b = detect(processor, model, img, queries, device=other_device)
+        if a.boxes_xyxy.shape != b.boxes_xyxy.shape:
+            n_mismatch += 1
+            continue
+        if a.boxes_xyxy.size:
+            max_box_diff = max(max_box_diff, float(np.abs(a.boxes_xyxy - b.boxes_xyxy).max()))
+            max_score_diff = max(max_score_diff, float(np.abs(a.scores - b.scores).max()))
+
+    model.to(orig_device)
+    stats = {
+        "max_box_diff_px": max_box_diff,
+        "max_score_diff": max_score_diff,
+        "shape_mismatch": float(n_mismatch),
+    }
+    ok = n_mismatch == 0 and max_box_diff <= atol_box and max_score_diff <= atol_score
+    return ok, stats
 
 
 def synthetic_alignment_check(

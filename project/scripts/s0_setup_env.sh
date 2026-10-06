@@ -25,6 +25,20 @@ LOGDET_ROOT="${LOGDET_ROOT:-$(cd "$PROJECT_DIR/.." && pwd)}"
 VENV_DIR="${VENV_DIR:-$LOGDET_ROOT/.venv}"
 LOCK_FILE="$PROJECT_DIR/environment/requirements.lock.txt"
 
+# venv 内部布局在 Windows（含 Git Bash/MSYS）上是 Scripts/python.exe，
+# 在 macOS/Linux 上是 bin/python —— 这是 CPython venv 模块本身按平台
+# 决定的，不是 shell 决定的。按 OSTYPE 探测一次，后面统一用这两个变量。
+case "${OSTYPE:-}" in
+  msys*|cygwin*|win32*)
+    VENV_BINDIR="Scripts"
+    VENV_PYEXE="python.exe"
+    ;;
+  *)
+    VENV_BINDIR="bin"
+    VENV_PYEXE="python"
+    ;;
+esac
+
 # ---- 挑选基础解释器 --------------------------------------------------------
 
 pick_base_python() {
@@ -79,7 +93,7 @@ esac
 
 # ---- 建 venv ---------------------------------------------------------------
 
-PY="$VENV_DIR/bin/python"
+PY="$VENV_DIR/$VENV_BINDIR/$VENV_PYEXE"
 
 if [[ -x "$PY" ]] && "$PY" -c "import sys" 2>/dev/null; then
   echo "[1/3] venv 已存在且解释器可用，跳过创建"
@@ -113,8 +127,8 @@ echo "[2/3] 安装锁定依赖 ..."
 
 echo "[3/3] 写入 activate 环境变量 ..."
 HOOK_MARK="# --- logodet env vars ---"
-if ! grep -qF "$HOOK_MARK" "$VENV_DIR/bin/activate" 2>/dev/null; then
-  cat >> "$VENV_DIR/bin/activate" <<EOF
+if ! grep -qF "$HOOK_MARK" "$VENV_DIR/$VENV_BINDIR/activate" 2>/dev/null; then
+  cat >> "$VENV_DIR/$VENV_BINDIR/activate" <<EOF
 
 $HOOK_MARK
 # MPS 遇到未实现算子时回退 CPU，而不是直接抛 NotImplementedError

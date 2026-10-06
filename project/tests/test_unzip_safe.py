@@ -170,7 +170,7 @@ def test_extract_roundtrip(tmp_path):
     out = tmp_path / "out"
     rep = safe_extract(z, out, verbose=False)
 
-    assert rep.path_used in ("ditto", "python")
+    assert rep.path_used in ("ditto", "zipfile", "python")
     assert rep.total_entries == 4
     for rel, data in entries.items():
         assert (out / rel).read_bytes() == data

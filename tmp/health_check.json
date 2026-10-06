@@ -1,0 +1,18 @@
+{
+  "time": 1791146421.225298,
+  "state": "FAILED",
+  "exit_code": 3,
+  "command": [
+    "D:\\condamini\\envs\\logodet_dino\\python.exe",
+    "-c",
+    "import sys; sys.exit(3)"
+  ],
+  "job_id": null,
+  "gpu": "0, 86, 11473, 12282",
+  "progress": {
+    "time": 1791146420.1184294,
+    "phase": "starting"
+  },
+  "seconds_without_progress": 1,
+  "stale": false
+}
