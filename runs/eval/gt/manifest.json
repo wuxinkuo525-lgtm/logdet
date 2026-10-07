@@ -1,0 +1,22 @@
+{
+  "source_tables": {
+    "annotations.parquet": "726ab31277b627ca",
+    "split_images.parquet": "15597e724d4231cb"
+  },
+  "config_fingerprint": "ec8cd3d2fa243626e21569dad7b065e966a61de647ed7d7bd463a56eb0c5a702",
+  "subsets": {
+    "val2k_repr": {
+      "n_images": 2000,
+      "n_annotations": 2451
+    },
+    "val_hard_pool": {
+      "n_images": 1230,
+      "n_annotations": 2099
+    },
+    "infer_union": {
+      "n_images": 3079,
+      "n_annotations": 4298
+    }
+  },
+  "overlap_images": 151
+}

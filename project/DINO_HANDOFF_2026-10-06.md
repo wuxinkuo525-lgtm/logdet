@@ -128,7 +128,7 @@ AR@300 是每张图给 300 个框的机会时能找回多少比例的 logo。数
 | `configs/dino/dino_r50_p2fusion_proto_hier_logodet3k.py` | 模型配置 |
 | `configs/dino/hparams/shared5k.yaml` | 5,000 张的超参预设 |
 | `configs/dino/hparams/mods/` | 实验变体，每个文件只有几行，叠加在基础预设上：关辅助分支、放大输入、长跑、分叉 |
-| `configs/dino/hparams/full141k.yaml` | 全量训练的超参预设（**开跑前要改，见第 10 节**） |
+| `configs/dino/hparams/full141k.yaml` | 全量训练的超参预设，已按第 6 节的结论设好 |
 | `scripts/s9_dino_train.py` | 训练入口 |
 | `scripts/s9_dino_predict.py`、`s9_dino_report.py` | 出预测、生成与基线并排的报告 |
 | `scripts/cluster/` | 集群上装环境、提交单个作业、提交整套调参的脚本 |
@@ -213,16 +213,27 @@ powershell -ExecutionPolicy Bypass -File scripts\download_tc2_results.ps1
 | 输入尺寸 | 原设置（短边 384 到 608） |
 | 训练遍数 | 先按 4 遍，每遍结束会自动评测，看趋势再决定是否增加 |
 
-开跑前要做的三件事：
+上表已写进 `configs/dino/hparams/full141k.yaml`，`--mode full` 默认读它。另外两项设置：
 
-1. **改预设**。`configs/dino/hparams/full141k.yaml` 现在写的是每步 1 张、学习率 1e-4，是调参出结果之前的值，
-   要改成上表。
-2. **补传一个文件**。全量训练每遍结束在 val2k_repr 上评测，需要把本机的 `runs/eval/gt/val2k_repr.json`
-   传到集群的 `~/logdet/runs/eval/gt/`。缺了它训练一启动就会报错。
-3. **把改过的预设上传到集群**。
+- 每 500 步存一个滚动存档（约 12 分钟），被 6 小时时限打断时最多丢这么多；
+- 每遍结束另存一个永久存档 `milestone_iter_*.pth`，4 遍共约 2.5 GB。滚动存档只留最近 2 个，
+  没有这一项的话，较早某一遍评测最好的模型会被删掉。
+
+开跑前要把这些文件传到集群：`full141k.yaml`、`scripts/s9_dino_train.py`、`src/logodet/dino/hooks.py`，
+以及本机的 `runs/eval/gt/val2k_repr.json`（传到集群的 `~/logdet/runs/eval/gt/`；每遍结束的评测要用，缺了它训练一启动就报错）。
+提交命令：`sbatch scripts/cluster/tc2_dino.sbatch.sh full`，每 6 小时原样再交一次。
 
 耗时估计：每步 1.40 秒（5,000 张上实测），每遍 35,360 步，约 13.5 小时；4 遍约 54 小时，约 10 次提交。
 这个速度没有在全量数据上实测过，读图量变大后可能略慢。
+
+**续跑启动慢是正常的**。训练框架续跑时会把已经训过的数据重新读一遍再跳过，以保持数据顺序不变。
+按 5,000 张上实测的约 850 张 / 秒，第 1 遍中途续跑约等 1 分钟，第 4 遍后期约等 10 分钟，10 次续跑累计约 1 小时；
+全量的图更多、更分散，可能更慢。这段时间 GPU 空闲、监控会提示"长时间无进展"，但不会杀掉作业，不要因此取消。
+
+**中途要加遍数**：必须在降学习率之前（第 3 遍结束，即第 106,080 步之前）决定。
+改预设里的 `epochs` 和 `lr_decay_epochs`（例如 6 和 [5]），下一次提交时加 `--accept-plan-change`。
+训练框架续跑时会恢复存档里的旧学习率计划，`ScheduleFromConfigHook` 会把降学习率的位置改回当前配置；
+已经降过学习率之后再改会直接报错。这个机制在本机用短训练实测过，集群上没有。
 
 ## 11. 还没做、值得做的
 

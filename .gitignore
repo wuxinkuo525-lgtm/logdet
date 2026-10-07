@@ -15,7 +15,24 @@
 # ---- 数据与产物（体积大且可重建）------------------------------------------
 /data/
 /raw/
-/runs/
+# runs/ 整体不进仓库，只放行分析时需要、且已经冻结不再变动的几份（约 45 MB）：
+# baseline 的三份预测与 manifest、标注表、数据划分、三份 COCO GT
+/runs/*
+!/runs/predictions/
+/runs/predictions/*
+!/runs/predictions/L1_rpn_proposals.parquet
+!/runs/predictions/L2_owlv2_zeroshot.parquet
+!/runs/predictions/L3_coco_collapsed.parquet
+!/runs/predictions/manifest_*.json
+!/runs/tables/
+/runs/tables/*
+!/runs/tables/annotations.parquet
+!/runs/tables/images.parquet
+!/runs/tables/classes.parquet
+!/runs/splits/
+!/runs/eval/
+/runs/eval/*
+!/runs/eval/gt/
 
 # ---- 虚拟环境 --------------------------------------------------------------
 /.venv/
@@ -57,3 +74,7 @@ htmlcov/
 
 # ---- 集群用户手册标注为 Restricted，不进仓库 ------------------------------------
 project/CCDSGPU-TC2-Masters-UserGuide.pdf
+
+# 上面放行的 runs/ 文件里有 parquet，不能被 *.parquet 挡住
+!/runs/**/*.parquet
+/runs/tables/file_inventory.parquet

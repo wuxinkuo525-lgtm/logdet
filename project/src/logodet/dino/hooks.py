@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from mmengine.hooks import Hook
 from mmengine.model import is_model_wrapper
 from mmdet.registry import HOOKS
@@ -62,6 +64,41 @@ class FinalEvaluationHook(Hook):
 
     def after_train(self, runner):
         finish_evaluation(runner, self.latest)
+
+
+@HOOKS.register_module()
+class ScheduleFromConfigHook(Hook):
+    """续训后让「在哪一步降学习率」以当前配置为准。
+
+    mmengine 续训时会把存档里的调度器状态整个恢复回来，连降学习率的位置（milestones）和
+    调度器的作用区间（end）都是旧的——中途改了 epoch 数 / 衰减位置再续训，实际执行的仍是旧计划。
+    这里在恢复之后把这两项改回配置里的值。已经降过学习率的不能反悔：那种情况直接报错。
+    """
+
+    def __init__(self, milestones: list[int], end: int) -> None:
+        self.milestones = sorted(int(m) for m in milestones)
+        self.end = int(end)
+
+    def before_train(self, runner) -> None:
+        schedulers = runner.param_schedulers
+        if isinstance(schedulers, dict):
+            schedulers = [s for group in schedulers.values() for s in group]
+        for sched in schedulers:
+            if type(sched).__name__ != "MultiStepLR":
+                continue
+            restored = sorted(sched.milestones.elements())
+            if restored == self.milestones and sched.end == self.end:
+                continue
+            done_before = [m for m in restored if m <= runner.iter]
+            done_now = [m for m in self.milestones if m <= runner.iter]
+            if done_before != done_now:
+                raise RuntimeError(
+                    f"存档已在 iter {done_before} 降过学习率，新计划要求的是 {done_now}（当前 iter {runner.iter}）："
+                    "已经执行过的降学习率改不回来，不能在这个存档上换计划。")
+            runner.logger.info(
+                f"学习率计划以当前配置为准：降 lr 的位置 {restored} → {self.milestones}，作用区间终点 {sched.end} → {self.end}")
+            sched.milestones = Counter(self.milestones)
+            sched.end = self.end
 
 
 @HOOKS.register_module()

@@ -56,6 +56,11 @@
 #     AUTO_RESUBMIT=0        关掉到点自动续交
 #     CHAIN_LEFT=12          最多自动续交多少次（防止意外的无限续交）
 #     REHEARSAL=1            彩排，见上
+#     ROUND2="long20 aux"    第一轮跑完后接着跑第二轮的哪几组（默认不跑）：
+#                              long20  长跑延到 20 epoch，从第 16 / 20 个 epoch 再分叉（约 5.5 小时）
+#                              aux     两个辅助分支分别消融，4 组各 9 epoch（约 19 小时）
+#                              auxw    辅助 loss 权重 0.1 对 0.5（基准组与 aux 共用，另加约 4.7 小时）
+#                              wd      weight decay 1e-4 对 1e-3 / 1e-5（另加约 9.5 小时）
 #     MIN_BASE_AP=0.20       阶段 1 选出的基准组 agn/AP 低于这个数就停下（退出码 3），不进入后面的阶段
 #     SKIP_HIRES=1           不跑放大输入那组（它报显存不够时用：看过日志确认是 OOM 后，带上这个再提交）
 #     BATCH=4                每步喂几张图（默认 1）。不同 batch 的组各自一套名字和选优留痕
@@ -123,7 +128,7 @@ on_timeout() {
     local RC=124
     JOB_STATE=NEEDS_RESUME
     if [ "${AUTO_RESUBMIT}" = "1" ] && [ "${CHAIN_LEFT}" -gt 0 ]; then
-        export LRS DECAY_AT STOP_AFTER REHEARSAL AUTO_RESUBMIT BATCH SKIP_HIRES MIN_BASE_AP
+        export LRS DECAY_AT STOP_AFTER REHEARSAL AUTO_RESUBMIT BATCH SKIP_HIRES MIN_BASE_AP ROUND2
         if sbatch --dependency="afterany:${SLURM_JOB_ID}" --export=ALL,CHAIN_LEFT=$((CHAIN_LEFT - 1)) "${SELF}"; then
             JOB_STATE=RESUBMITTED
             RC=0
@@ -312,6 +317,64 @@ FINAL="$(pick final "${FINAL_RUNS[@]}")"
 
 echo "全部完成。lr=${BEST_LR}，变体=${MODS[*]:-无}，最终最好的一组：${FINAL}"
 echo "各阶段的比较明细：${RUNS_ROOT}/dino/${SWEEP}_*.json"
+
+# ---- 第二轮：补第一轮没探索到的地方（ROUND2 里列了哪几组就跑哪几组，按书写顺序）----
+# 第一轮的教训是 4 个 epoch 时品牌分类还没学起来，所以除 long20 外都用 9 个 epoch 的计划（mods/sched9.yaml）。
+# 这一轮只跑、只记录、不自动采用任何结果：每组各出一份 ${SWEEP}_r2_<组>.json 供人看。
+S9=("${BASE}" ${MODS[@]+"${MODS[@]}"} "${HP}/mods/sched9.yaml")
+for GROUP in ${ROUND2:-}; do
+    echo "=== 第二轮 / ${GROUP}"
+    case "${GROUP}" in
+    long20)
+        # 训练更久：长跑延到 20 epoch，再从第 16、20 个 epoch 分叉降 lr
+        L20="${RUNS_ROOT}/dino/${P}_long20"
+        if ! ls "${L20}"/*.pth >/dev/null 2>&1 && [ ! -f "${L20}/DONE" ]; then
+            SEED_CKPT="${RUNS_ROOT}/dino/${P}_long/milestone_iter_$((12 * ITERS_PER_EPOCH)).pth"
+            [ -f "${SEED_CKPT}" ] || { echo "FAIL: 找不到第一轮长跑第 12 个 epoch 的存档 ${SEED_CKPT}" >&2; exit 1; }
+            mkdir -p "${L20}"
+            cp "${SEED_CKPT}" "${L20}/iter_$((12 * ITERS_PER_EPOCH)).pth"
+            # mmengine 续训只认 last_checkpoint 这个指针文件，不会自己去找目录里的 .pth；
+            # 少了它会一声不吭地从头训（本机短测抓到过）
+            echo "${L20}/iter_$((12 * ITERS_PER_EPOCH)).pth" > "${L20}/last_checkpoint"
+            echo "已把 ${SEED_CKPT} 拷进 ${L20}，从第 12 个 epoch 续训"
+        fi
+        run_one "${P}_long20" "${BEST_LR}" --hparams "${BASE}" ${MODS[@]+"${MODS[@]}"} "${HP}/mods/long20.yaml"
+        R2_RUNS=("${FINAL_RUNS[@]}")
+        for E in 16 20; do
+            R2_RUNS+=("${P}_decay_e${E}")
+            run_one "${P}_decay_e${E}" "${DECAY_LR}" --hparams "${BASE}" ${MODS[@]+"${MODS[@]}"} "${HP}/mods/decay.yaml" \
+                --init-from "${L20}/milestone_iter_$((E * ITERS_PER_EPOCH)).pth"
+        done
+        echo "=== 第二轮 / long20 最好：$(pick r2_long20 "${R2_RUNS[@]}")"
+        ;;
+    aux)
+        # 两个辅助分支分别消融：都开 / 只 Prototype / 只 Hierarchy / 都关
+        run_one "${P}_s9_base" "${BEST_LR}" --hparams "${S9[@]}"
+        run_one "${P}_s9_proto" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/proto_only.yaml"
+        run_one "${P}_s9_hier" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/hier_only.yaml"
+        run_one "${P}_s9_noaux" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/noaux.yaml"
+        echo "=== 第二轮 / aux 最好：$(pick r2_aux "${P}_s9_base" "${P}_s9_proto" "${P}_s9_hier" "${P}_s9_noaux")"
+        ;;
+    auxw)
+        # 辅助 loss 的权重大小：0.1（基准）对 0.5
+        run_one "${P}_s9_base" "${BEST_LR}" --hparams "${S9[@]}"
+        run_one "${P}_s9_aux05" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/aux05.yaml"
+        echo "=== 第二轮 / auxw 最好：$(pick r2_auxw "${P}_s9_base" "${P}_s9_aux05")"
+        ;;
+    wd)
+        # weight decay：1e-4（基准）对 1e-3、1e-5
+        run_one "${P}_s9_base" "${BEST_LR}" --hparams "${S9[@]}"
+        run_one "${P}_s9_wd1e-3" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/wd1e-3.yaml"
+        run_one "${P}_s9_wd1e-5" "${BEST_LR}" --hparams "${S9[@]}" "${HP}/mods/wd1e-5.yaml"
+        echo "=== 第二轮 / wd 最好：$(pick r2_wd "${P}_s9_base" "${P}_s9_wd1e-3" "${P}_s9_wd1e-5")"
+        ;;
+    *)
+        echo "FAIL: ROUND2 里有不认识的组 ${GROUP}（可用：long20 aux auxw wd）" >&2
+        exit 1
+        ;;
+    esac
+done
+[ -z "${ROUND2:-}" ] || echo "第二轮完成：${ROUND2}"
 
 if [ "${REHEARSAL}" = "1" ]; then
     echo "彩排通过。保留彩排存档供回执校验；彩排预测不能用于正式报告。"

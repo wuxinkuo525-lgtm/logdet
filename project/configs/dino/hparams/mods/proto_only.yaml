@@ -1,0 +1,2 @@
+# 变体：只保留 Prototype 分支（关掉 Hierarchy）。与 hier_only / noaux 一起，把两个辅助分支的贡献拆开看。
+loss_hierarchy_weight: 0.0

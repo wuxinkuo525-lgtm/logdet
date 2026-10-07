@@ -1,0 +1,2 @@
+# 变体：weight decay 加大 10 倍（默认 1e-4）。
+weight_decay: 1.0e-3

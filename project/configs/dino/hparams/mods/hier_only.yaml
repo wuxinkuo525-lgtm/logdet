@@ -1,0 +1,2 @@
+# 变体：只保留 Hierarchy 分支（关掉 Prototype）。
+loss_prototype_weight: 0.0

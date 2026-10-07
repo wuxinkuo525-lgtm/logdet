@@ -1,0 +1,2 @@
+# 变体：weight decay 减小到 1/10（默认 1e-4）。
+weight_decay: 1.0e-5

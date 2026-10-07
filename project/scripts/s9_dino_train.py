@@ -208,6 +208,9 @@ def to_resumable_full(
             gamma=lr_decay_gamma,
         )
     ]
+    # 续训时 mmengine 会恢复存档里的旧调度器；这个钩子把降 lr 的位置改回当前配置（见钩子的说明）
+    cfg.custom_hooks = [*cfg.custom_hooks, dict(
+        type="ScheduleFromConfigHook", milestones=cfg.param_scheduler[0]["milestones"], end=max_iters)]
     if warmup_iters:
         cfg.param_scheduler.insert(
             0, dict(type="LinearLR", start_factor=0.001, by_epoch=False, begin=0, end=warmup_iters)
@@ -329,6 +332,11 @@ def main() -> int:
     # 续训时 work_dir 里还没有 checkpoint（第一个作业）就从预训练权重正常起步
     cfg.resume = args.resume and any(Path(cfg.work_dir).glob("*.pth"))
     init_from = str(cfg.load_from)  # 续训时下面会清掉 load_from；计划核对要的是「最初从哪起步」
+    if cfg.resume and not (Path(cfg.work_dir) / "last_checkpoint").is_file():
+        # mmengine 靠 last_checkpoint 找续训起点。目录里有存档却没有这个指针文件时，它不报错，
+        # 而是既不续训也不加载预训练权重，直接从随机初始化开始训——必须在这里拦住
+        raise SystemExit(f"FAIL: {cfg.work_dir} 里有存档但没有 last_checkpoint，无法确定从哪个存档续训。"
+                         f"手动拷存档进来的话，要同时写一个内容为该存档完整路径的 last_checkpoint 文件。")
     if cfg.resume:
         cfg.load_from = None  # 否则 mmengine 会从 load_from（COCO 预训练）而不是 work_dir 最新存档续
     epochs = hp.get("epochs") or cfg.max_epochs

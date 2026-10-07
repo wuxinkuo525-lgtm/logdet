@@ -3,27 +3,29 @@
 # 用法：python scripts/s9_dino_train.py --mode full --resume        （full 模式默认读本文件）
 #       集群：sbatch scripts/cluster/tc2_dino.sbatch.sh full
 #
-# 哪些值是从 5,000 张调参（shared5k.yaml + mods/）搬过来的、哪些不是：
-#   搬过来的    lr、warmup、backbone_lr_mult、weight_decay、输入尺寸、辅助分支 —— 前提是 batch 不变
-#   重新定的    epochs、lr_decay_epochs —— 和数据量强相关，小数据上的结论搬不过来
-#
-# 5,000 张调参全部跑完后，按结论改这里：
-#   - 关掉辅助分支更好  → 两个 loss 权重改 0（或叠加 mods/noaux.yaml）
-#   - 放大输入更好      → 输入尺寸四行换成 mods/hires.yaml 里的值（每个 epoch 会慢约 1.4 倍）
-#   - 换了 batch        → lr 必须重新对应并先在 5,000 张上验证，不能只改 batch_size
+# 这些值来自 5,000 张上的调参（batch 4 那一套，结果见 DINO_SESSION_2026-10-05.md 第 13 节）：
+#   batch 4            比 batch 1 分数高（0.2988 对 0.2652），每张图耗时少三成
+#   lr 2e-4            batch 4 下与 1e-4 没有区别，取与官方配置一致的 2e-4
+#   最后一个 epoch 降 lr  12 个 epoch 不降是 0.3076，降了再训 1 个 epoch 到 0.3745
+#   辅助分支保留        关掉后 0.2948 → 0.2793
+#   输入不放大          batch 4 下放大输入显存不够，没有结论
+# epochs 不是调出来的：小数据上「多训明显更好」，但全量 1 个 epoch 的样本数相当于子集的 28 个 epoch，
+# 合适的 epoch 数只能边跑边看。每个 epoch 结束会评测；要加 epoch 时见文件末尾的说明。
 # 优先级：命令行参数 > 本文件 > 模型配置里的默认值。
 
 # ---- 训练量 ----
-epochs: 4               # 141,438 iter/epoch；A40 上 batch 1 实测 0.49 s/iter，每个 epoch 约 19 小时
-batch_size: 1           # 与 5,000 张调参时一致，lr 才能直接照搬
-ckpt_interval: 2000     # 集群作业被 6 小时墙钟杀掉时最多丢这么多（约 16 分钟）
+epochs: 4               # 35,360 iter/epoch；A40 上 batch 4 实测 1.40 s/iter，每个 epoch 约 13.5 小时，共约 54 小时
+batch_size: 4           # A40 上显存约 28 GB
+ckpt_interval: 500      # 约 12 分钟一个存档；集群作业被 6 小时墙钟杀掉时最多丢这么多
+keep_ckpt_every_epochs: 1   # 滚动存档只留最近 2 个；每个 epoch 结束（= 每次评测的时刻）另存一个永久存档
+                            # milestone_iter_*.pth，这样哪个 epoch 评测最好都取得回来。每个约 630 MB
 
 # ---- 学习率 ----
-lr: 1.0e-4              # 5,000 张上 1e-4 的 agn/AP 0.2333，2e-4 只有 0.1448（模型配置的默认值正是 2e-4，不能用）
+lr: 2.0e-4
 backbone_lr_mult: 0.1
 weight_decay: 1.0e-4
 warmup_iters: 500
-lr_decay_epochs: [3]    # 最后一个 epoch ×0.1。5,000 张上前三个 epoch 分数在抖，降 lr 后才升上去
+lr_decay_epochs: [3]    # 最后一个 epoch ×0.1
 lr_decay_gamma: 0.1
 
 # ---- 输入尺寸 ----
@@ -37,5 +39,10 @@ loss_prototype_weight: 0.1
 loss_hierarchy_weight: 0.1
 proto_temperature: 0.07
 
-amp: false
+amp: false              # 混合精度在这个模型上第一步就出现非有限梯度，不能开
 seed: 20260917
+
+# 要加 epoch（比如第 3 个 epoch 结束时分数还在明显上涨）：
+#   必须在降 lr 之前决定，也就是第 3 个 epoch 结束（iter 106,080）之前。
+#   改 epochs 和 lr_decay_epochs（例如 6 和 [5]），提交时加 --accept-plan-change。
+#   已经降过 lr 之后不能再改衰减位置（训练入口会报错）；那时只能从某个 epoch 的永久存档另起一组。

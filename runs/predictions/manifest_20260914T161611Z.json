@@ -1,0 +1,29 @@
+{
+  "run_id": "20260914T161611Z",
+  "device_mode": "cpu",
+  "model": "fasterrcnn_resnet50_fpn_v2",
+  "weights": "FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1",
+  "weights_sha256_16": "dd69338a24b8d738",
+  "config_fingerprint": "ec8cd3d2fa243626e21569dad7b065e966a61de647ed7d7bd463a56eb0c5a702",
+  "n_images": 3079,
+  "seconds": 4738.5,
+  "img_per_sec": 0.65,
+  "stage_seconds_per_img_ms": {
+    "front": 1264.9,
+    "move": 0.1,
+    "roi": 268.4
+  },
+  "proposals": {
+    "rows": 923700,
+    "per_image_median": 300,
+    "per_image_max": 300,
+    "score_note": "objectness 为降序合成值，不可跨图比较 → 只报 AR，禁止报 AP"
+  },
+  "detections": {
+    "rows": 90077,
+    "per_image_median": 21,
+    "per_image_max": 100,
+    "class_collapse": "91 个 COCO 类 → category_id=1"
+  },
+  "built_at": "2026-09-14T17:35:14+00:00"
+}

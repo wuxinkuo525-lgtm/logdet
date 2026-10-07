@@ -1,0 +1,46 @@
+{
+  "config_fingerprint": "2d6492bb3c72078ff8c7f7447afe6e360c0f4c590a653c721dd08b6cf167193d",
+  "val_ratio_target": 0.1,
+  "n_images": 158654,
+  "n_trainval": 141438,
+  "n_val": 17216,
+  "val_ratio_actual": 0.10851286447237385,
+  "n_clusters": 158593,
+  "n_multi_clusters": 61,
+  "classes_absent_in_val": [],
+  "classes_absent_in_trainval": [],
+  "per_class_val_ratio": {
+    "median": 0.10891089108910891,
+    "p05": 0.1,
+    "p95": 0.16666666666666666,
+    "min": 0.1,
+    "max": 0.25
+  },
+  "val2k_repr": {
+    "n_images": 2000,
+    "n_boxes": 2451,
+    "strata_used": 91,
+    "shortfalls": []
+  },
+  "val_hard_pool": {
+    "n_images": 1230,
+    "n_boxes": 2099,
+    "per_axis_boxes": {
+      "T1": 2241,
+      "SIZE_small": 497,
+      "DENSITY_5plus": 919
+    },
+    "shortfalls": [],
+    "n_hard": 615,
+    "n_clean_control": 615
+  },
+  "topn_candidate_curve": {
+    "50": 1415,
+    "80": 592,
+    "100": 292,
+    "120": 163,
+    "150": 64,
+    "200": 8
+  },
+  "built_at": "2026-09-14T16:13:53+00:00"
+}

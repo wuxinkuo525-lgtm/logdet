@@ -1,0 +1,3 @@
+# 变体：两个辅助 loss 的权重从 0.1 加到 0.5，看默认的 0.1 是不是太小。
+loss_prototype_weight: 0.5
+loss_hierarchy_weight: 0.5
