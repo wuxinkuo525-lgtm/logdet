@@ -33,6 +33,11 @@
 !/runs/eval/
 /runs/eval/*
 !/runs/eval/gt/
+# 框级分析的例图拼图；runs/metrics/ 里的全部指标表（baseline、各组 DINO、框级明细，共约 2 MB，
+# 报告脚本要读它们，下面 !/runs/**/*.parquet 会把这里的 parquet 都放行）
+!/runs/analysis/
+!/runs/metrics/
+/runs/metrics/*
 
 # ---- 虚拟环境 --------------------------------------------------------------
 /.venv/
@@ -78,3 +83,6 @@ project/CCDSGPU-TC2-Masters-UserGuide.pdf
 # 上面放行的 runs/ 文件里有 parquet，不能被 *.parquet 挡住
 !/runs/**/*.parquet
 /runs/tables/file_inventory.parquet
+
+# 框级分析的例图拼图是 jpg，不能被 *.jpg 挡住
+!/runs/analysis/**/*.jpg
