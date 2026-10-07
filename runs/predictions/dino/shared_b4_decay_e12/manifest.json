@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "status": "complete",
+  "partial": false,
+  "final_evaluation": {
+    "checkpoint": {
+      "name": "iter_1250.pth",
+      "size": 632316156,
+      "mtime_ns": 1791272912900208000
+    },
+    "checkpoint_iter": 1250,
+    "eval_step": 1250,
+    "max_iters": 1250,
+    "seed": 20260917,
+    "metrics": {
+      "coco/bbox_mAP": 0.191,
+      "coco/bbox_mAP_50": 0.267,
+      "coco/bbox_mAP_75": 0.216,
+      "coco/bbox_mAP_s": 0.0,
+      "coco/bbox_mAP_m": 0.187,
+      "coco/bbox_mAP_l": 0.213,
+      "agn/AP": 0.3346,
+      "agn/AP50": 0.5675,
+      "agn/AP75": 0.3326,
+      "agn/AP_small": 0.0191,
+      "agn/AR@100": 0.7603,
+      "agn/AR@300": 0.7981,
+      "agn/AR50@300": 0.9938
+    }
+  },
+  "checkpoint_identity": {
+    "name": "iter_1250.pth",
+    "size": 632316156,
+    "mtime_ns": 1791272912900208000
+  },
+  "sha256": {
+    "predictions.npz": "d080642d75548e0dcc1f6deb5ab584098aae6dff7788fc8f76d82dd5ebd130a0",
+    "own_eval_ann.json": "38e76609846cb685917baf2b99289c72f7cac72bca077b43f028d191b50377dc"
+  },
+  "run_name": "shared_b4_decay_e12",
+  "created_utc": "2026-10-06T07:54:57Z",
+  "n_images": 3335,
+  "n_infer_union": 3079,
+  "own_eval_ann": "own_eval_ann.json",
+  "own_eval_name": "shared_dev_eval",
+  "img_per_sec": 10.69,
+  "gpu": "NVIDIA A40",
+  "versions": {
+    "torch": "2.1.0+cu121",
+    "mmdet": "3.3.0",
+    "mmcv": "2.1.0"
+  },
+  "conditions": {
+    "checkpoint": "/home/mcaai/xinkuo001/logdet/runs/dino/shared_b4_decay_e12/iter_1250.pth",
+    "checkpoint_iter": 1250,
+    "seed": 20260917,
+    "max_iters": 1250,
+    "val_interval": 1250,
+    "pretrained": "milestone_iter_15000.pth",
+    "train_ann": "shared_train.json",
+    "train_images": 5000,
+    "train_boxes": 5965,
+    "train_classes_present": 2129,
+    "num_classes": 3000,
+    "batch_size": 4,
+    "optimizer": "AdamW",
+    "lr": 2e-05,
+    "weight_decay": 0.0001,
+    "backbone_lr_mult": 0.1,
+    "grad_clip": 0.1,
+    "amp": false,
+    "param_scheduler": [
+      {
+        "begin": 0,
+        "by_epoch": false,
+        "end": 1250,
+        "gamma": 0.1,
+        "milestones": [],
+        "type": "MultiStepLR"
+      }
+    ],
+    "train_short_sides": [
+      384,
+      416,
+      448,
+      480,
+      512,
+      544,
+      576,
+      608
+    ],
+    "train_long_side_cap": 800,
+    "test_scale": [
+      512,
+      800
+    ],
+    "num_queries": 900,
+    "max_per_img": 300,
+    "loss_prototype_weight": 0.1,
+    "loss_hierarchy_weight": 0.1,
+    "proto_temperature": 0.07,
+    "neck": "EnhancedP2FPN",
+    "head": "ProtoHierDINOHead",
+    "last_train_log": {
+      "iter": 1250,
+      "loss": 10.928830480575561,
+      "loss_cls": 0.1968357352167368,
+      "loss_bbox": 0.2282927230000496,
+      "loss_iou": 0.2605644389986992,
+      "dn_loss_cls": 0.09205640103667974,
+      "loss_prototype": 0.49299132704734805,
+      "loss_hierarchy": 0.0844498565979302,
+      "fusion_alpha": 0.4689205586910248,
+      "fusion_beta": 0.25726228952407837,
+      "fusion_gamma": 0.27381715178489685,
+      "grad_norm": 63.24386367797852,
+      "lr": 2e-05
+    },
+    "eval_log": [
+      {
+        "coco/bbox_mAP": 0.191,
+        "coco/bbox_mAP_50": 0.267,
+        "coco/bbox_mAP_75": 0.216,
+        "coco/bbox_mAP_s": 0.0,
+        "coco/bbox_mAP_m": 0.187,
+        "coco/bbox_mAP_l": 0.213,
+        "agn/AP": 0.3346,
+        "agn/AP50": 0.5675,
+        "agn/AP75": 0.3326,
+        "agn/AP_small": 0.0191,
+        "agn/AR@100": 0.7603,
+        "agn/AR@300": 0.7981,
+        "agn/AR50@300": 0.9938,
+        "data_time": 0.001866278238594532,
+        "time": 0.1283929981291294,
+        "step": 0
+      }
+    ]
+  }
+}
