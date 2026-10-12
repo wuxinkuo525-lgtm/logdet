@@ -24,10 +24,11 @@
 !/runs/predictions/L2_owlv2_zeroshot.parquet
 !/runs/predictions/L3_coco_collapsed.parquet
 !/runs/predictions/manifest_*.json
-# DINO（Method 2）只放行最好的一组的原始检测：predictions.npz + manifest.json + own_eval_ann.json，约 23 MB
+# DINO（Method 2）只放行两组的原始检测（各约 23 MB）：5,000 张最好的一组、全量训练的最终模型
 !/runs/predictions/dino/
 /runs/predictions/dino/*
 !/runs/predictions/dino/shared_b4_decay_e12/
+!/runs/predictions/dino/full/
 !/runs/tables/
 /runs/tables/*
 !/runs/tables/annotations.parquet

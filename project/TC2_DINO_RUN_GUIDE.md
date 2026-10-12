@@ -242,6 +242,58 @@ sbatch --export=ALL,STOP_AFTER=2 scripts/cluster/tc2_shared_sweep.sbatch.sh
 默认种子 `20260917`。开始实验前可以修改 `configs/dino/hparams/shared5k.yaml`；同一组开始后续跑保持原配置、学习率、数据及输出目录不变。
 扫描脚本通过环境变量控制阶段；不要假定给扫描脚本追加训练 CLI 参数会透传。
 
+## 7b. 全量训练（141,438 张）：提交、续跑、看进度
+
+设置在 `configs/dino/hparams/full141k.yaml`：batch 4、lr 2e-4、4 遍、第 3 遍结束降 lr、每 500 步存档、每遍结束另存永久存档。
+共 141,440 步，每步约 1.4 秒，约 54 小时，要提交约 10 次。开跑前集群上要有 `runs/eval/gt/val2k_repr.json`（见第 3 节上传表）。
+
+**每次的操作都一样**：先在自己电脑的 PowerShell 里登录（第 1 节），然后在集群终端运行：
+
+```bash
+cd ~/logdet/project
+squeue -u $USER
+sbatch scripts/cluster/tc2_dino.sbatch.sh full
+```
+
+`squeue` 里还有自己的作业（`R` 或 `PD`）时不要提交；为空才提交。第一次提交是开跑，之后每次都是从最近的存档续跑，
+不用加任何参数。这个作业脚本不会自动续交，6 小时到点后要手动再交一次。
+
+续跑开头会先把已经训过的数据读一遍再跳过，越往后等得越久（后期约 10 分钟），这段时间没有训练日志、监控可能提示无进展，属正常，不要取消。
+
+**看进度和剩余时间**：
+
+```bash
+cd ~/logdet/project
+f=$(ls -t output_logodet_dino_*.out | head -1); echo $f
+line=$(grep "Iter(train)" $f | tail -1); echo "$line" | cut -c1-120
+cur=$(echo "$line" | sed -E 's/.*\[ *([0-9]+)\/([0-9]+)\].*//'); tot=$(echo "$line" | sed -E 's/.*\[ *([0-9]+)\/([0-9]+)\].*//')
+sec=$(echo "$line" | sed -E 's/.* time: ([0-9.]+).*//')
+awk -v c=$cur -v t=$tot -v s=$sec 'BEGIN { printf "进度 %d/%d（%.1f%%），第 %d 遍；剩余约 %.1f 小时，约 %d 次提交
+", c, t, 100*c/t, int(c/35360)+1, (t-c)*s/3600, int((t-c)*s/3600/5.7)+1 }'
+```
+
+**看每遍结束的评测**（第 1 遍在第 35,360 步结束，之后每 35,360 步一次，共 4 次）：
+
+```bash
+grep -h "agn/AP" $(grep -l "141,438 图" output_logodet_dino_*.out) | cut -c1-260
+```
+
+`coco/bbox_mAP` 是认品牌的分数，`agn/AP` 是只看框的分数。第 1 遍结束时认品牌的分数应明显高于 5,000 张最好那组的 0.156；
+若仍接近 0，停下来排查，不要等跑完。
+
+**中途要加遍数**：必须在第 3 遍结束（第 106,080 步）之前决定。改 `full141k.yaml` 里的 `epochs` 和 `lr_decay_epochs`
+（例如 6 和 [5]），上传后下一次提交加 `--accept-plan-change`。降过学习率之后不能再改。
+
+**跑完以后**：`runs/dino/full/` 下出现 `final_eval.json` 即训练完成。接着在集群上出预测（要用 GPU，所以也通过 sbatch 提交，约 10 分钟）：
+
+```bash
+cd ~/logdet/project
+sbatch --partition=MGPU-TC2 --qos=normal --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=01:00:00   --job-name=logodet_predict --output=output_%x_%j.out --error=error_%x_%j.err   --wrap 'module load anaconda; eval "$(conda shell.bash hook)"; conda activate logodet_dino; python scripts/s9_dino_predict.py --run-name full'
+```
+
+完成后 `runs/predictions/dino/full/` 下有 `predictions.npz`、`manifest.json`、`own_eval_ann.json`。
+再按第 9 节下载并在本机出报告，`--run-name` 用 `full`。
+
 ## 8. 看进度、识别状态、到时限后续跑
 
 最新版本每分钟在 stderr 写 `[HEALTH]`：当前命令、训练/验证/预测阶段、最近进度、
